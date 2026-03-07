@@ -3,8 +3,9 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { Plus, X, Calendar, MapPin, Send, Smartphone } from 'lucide-react'
+import { Plus, X, Calendar, MapPin, Send, Smartphone, Sparkles } from 'lucide-react'
 import { useUser } from '@/hooks/use-user'
+import { parseAvailability } from '@/lib/parse-availability'
 
 type CourseOption = {
   id: string
@@ -26,6 +27,8 @@ export default function ProposePage() {
   const [allCourses, setAllCourses] = useState<CourseOption[]>([])
   const [selectedCourses, setSelectedCourses] = useState<{ id?: string; name: string }[]>([])
   const [submitting, setSubmitting] = useState(false)
+  const [availabilityText, setAvailabilityText] = useState('')
+  const [aiError, setAiError] = useState<string | null>(null)
 
   useEffect(() => {
     async function fetchCourses() {
@@ -112,6 +115,20 @@ export default function ProposePage() {
     router.push(`/propose/${proposal.id}`)
   }
 
+  function handleGenerateTimes() {
+    setAiError(null)
+    const slots = parseAvailability(availabilityText)
+    if (slots.length === 0) {
+      setAiError('Couldn\'t parse that. Try something like "Saturday morning or Sunday after 2pm"')
+      return
+    }
+    setTimes(slots.map(s => s.dateTime))
+    if (!title.trim()) {
+      setTitle('Weekend round')
+    }
+    setAvailabilityText('')
+  }
+
   const filteredCourses = allCourses.filter(c =>
     !courseSearch ||
     c.name.toLowerCase().includes(courseSearch.toLowerCase()) ||
@@ -125,6 +142,51 @@ export default function ProposePage() {
         <p className="text-gray-400 mb-8">
           Pick some times and courses, then send the link. Everyone votes on what works.
         </p>
+
+        {/* Quick Availability Input */}
+        <div className="bg-dark-800 rounded-2xl border border-dark-700 p-5 mb-8">
+          <div className="flex items-center gap-2 mb-3">
+            <Sparkles className="w-5 h-5 text-amber-400" />
+            <h2 className="text-white font-semibold text-sm">Quick Setup</h2>
+          </div>
+          <p className="text-gray-500 text-xs mb-3">
+            Type your availability and we&apos;ll fill in the times for you.
+          </p>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={availabilityText}
+              onChange={e => { setAvailabilityText(e.target.value); setAiError(null) }}
+              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleGenerateTimes() } }}
+              placeholder='e.g., "Saturday morning or Sunday after 2pm"'
+              className="flex-1 bg-dark-700 border border-dark-600 text-gray-100 placeholder-gray-500 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-amber-500 focus:border-transparent outline-none"
+            />
+            <button
+              type="button"
+              onClick={handleGenerateTimes}
+              disabled={!availabilityText.trim()}
+              className="inline-flex items-center gap-1.5 bg-amber-600 text-white px-4 py-3 rounded-xl font-medium text-sm hover:bg-amber-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
+            >
+              <Sparkles className="w-4 h-4" />
+              Fill Times
+            </button>
+          </div>
+          {aiError && (
+            <p className="text-red-400 text-xs mt-2">{aiError}</p>
+          )}
+          <div className="flex flex-wrap gap-2 mt-3">
+            {['Saturday morning', 'This weekend', 'Tomorrow after 2pm', 'Friday at 10am or Saturday 8am'].map(example => (
+              <button
+                key={example}
+                type="button"
+                onClick={() => { setAvailabilityText(example); setAiError(null) }}
+                className="text-xs px-2.5 py-1 rounded-full bg-dark-700 text-gray-400 hover:text-amber-400 hover:bg-dark-600 transition-colors border border-dark-600"
+              >
+                {example}
+              </button>
+            ))}
+          </div>
+        </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Title */}
