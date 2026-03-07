@@ -1,11 +1,11 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { Plus, X, Calendar, MapPin, Send, Smartphone, Sparkles } from 'lucide-react'
+import { Plus, X, Calendar, MapPin, Send, Sparkles, Bot, User as UserIcon, Check } from 'lucide-react'
 import { useUser } from '@/hooks/use-user'
-import { parseAvailability } from '@/lib/parse-availability'
+import { format } from 'date-fns'
 
 type CourseOption = {
   id: string
@@ -15,10 +15,19 @@ type CourseOption = {
   parent_club: string | null
 }
 
+type ChatMessage = {
+  role: 'user' | 'assistant'
+  content: string
+  times?: { dateTime: string; label: string }[]
+  title?: string | null
+}
+
 export default function ProposePage() {
   const supabase = createClient()
   const router = useRouter()
   const { userId, profile } = useUser()
+  const chatEndRef = useRef<HTMLDivElement>(null)
+  const chatInputRef = useRef<HTMLInputElement>(null)
 
   const [title, setTitle] = useState('')
   const [message, setMessage] = useState('')
@@ -27,8 +36,19 @@ export default function ProposePage() {
   const [allCourses, setAllCourses] = useState<CourseOption[]>([])
   const [selectedCourses, setSelectedCourses] = useState<{ id?: string; name: string }[]>([])
   const [submitting, setSubmitting] = useState(false)
-  const [availabilityText, setAvailabilityText] = useState('')
-  const [aiError, setAiError] = useState<string | null>(null)
+
+  // Chat state
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
+    {
+      role: 'assistant',
+      content: "Hey! I'm your caddie for scheduling. Tell me when you're free and I'll set up the times. Something like \"any day except Wednesday\" or \"Saturday morning and Sunday after 2.\"",
+      times: [],
+      title: null,
+    },
+  ])
+  const [chatInput, setChatInput] = useState('')
+  const [chatLoading, setChatLoading] = useState(false)
+  const [timesApplied, setTimesApplied] = useState(false)
 
   useEffect(() => {
     async function fetchCourses() {
@@ -40,6 +60,10 @@ export default function ProposePage() {
     }
     fetchCourses()
   }, [])
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [chatMessages, chatLoading])
 
   function addTime() {
     setTimes(prev => [...prev, ''])
@@ -67,6 +91,60 @@ export default function ProposePage() {
     setSelectedCourses(prev => prev.filter((_, i) => i !== index))
   }
 
+  async function handleChatSend() {
+    if (!chatInput.trim() || chatLoading) return
+
+    const userMsg: ChatMessage = { role: 'user', content: chatInput.trim() }
+    const updatedMessages = [...chatMessages, userMsg]
+    setChatMessages(updatedMessages)
+    setChatInput('')
+    setChatLoading(true)
+    setTimesApplied(false)
+
+    try {
+      const res = await fetch('/api/propose-assist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: updatedMessages.map(m => ({ role: m.role, content: m.content })),
+        }),
+      })
+
+      const data = await res.json()
+
+      const assistantMsg: ChatMessage = {
+        role: 'assistant',
+        content: data.message || "I'm having trouble understanding. Can you rephrase?",
+        times: data.times || [],
+        title: data.title || null,
+      }
+
+      setChatMessages(prev => [...prev, assistantMsg])
+
+      // Auto-apply times if we got some
+      if (data.times && data.times.length > 0) {
+        setTimes(data.times.map((t: { dateTime: string }) => t.dateTime))
+        setTimesApplied(true)
+      }
+      if (data.title && !title.trim()) {
+        setTitle(data.title)
+      }
+    } catch {
+      setChatMessages(prev => [
+        ...prev,
+        { role: 'assistant', content: 'Something went wrong. You can fill in the form manually below.', times: [], title: null },
+      ])
+    } finally {
+      setChatLoading(false)
+      chatInputRef.current?.focus()
+    }
+  }
+
+  function applyTimes(msgTimes: { dateTime: string; label: string }[]) {
+    setTimes(msgTimes.map(t => t.dateTime))
+    setTimesApplied(true)
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!userId || !title.trim() || times.filter(t => t).length === 0) return
@@ -89,7 +167,6 @@ export default function ProposePage() {
       return
     }
 
-    // Insert time options
     const validTimes = times.filter(t => t)
     if (validTimes.length > 0) {
       await supabase.from('proposal_times').insert(
@@ -100,7 +177,6 @@ export default function ProposePage() {
       )
     }
 
-    // Insert course options
     if (selectedCourses.length > 0) {
       await supabase.from('proposal_courses').insert(
         selectedCourses.map(c => ({
@@ -115,20 +191,6 @@ export default function ProposePage() {
     router.push(`/propose/${proposal.id}`)
   }
 
-  function handleGenerateTimes() {
-    setAiError(null)
-    const slots = parseAvailability(availabilityText)
-    if (slots.length === 0) {
-      setAiError('Couldn\'t parse that. Try something like "Saturday morning or Sunday after 2pm"')
-      return
-    }
-    setTimes(slots.map(s => s.dateTime))
-    if (!title.trim()) {
-      setTitle('Weekend round')
-    }
-    setAvailabilityText('')
-  }
-
   const filteredCourses = allCourses.filter(c =>
     !courseSearch ||
     c.name.toLowerCase().includes(courseSearch.toLowerCase()) ||
@@ -139,53 +201,116 @@ export default function ProposePage() {
     <div className="min-h-screen bg-dark-950">
       <div className="max-w-lg mx-auto px-4 py-8">
         <h1 className="text-3xl font-bold text-white mb-2">Propose a Round</h1>
-        <p className="text-gray-400 mb-8">
-          Pick some times and courses, then send the link. Everyone votes on what works.
+        <p className="text-gray-400 mb-6">
+          Chat with the AI caddie or fill in the form below. Everyone votes on what works.
         </p>
 
-        {/* Quick Availability Input */}
-        <div className="bg-dark-800 rounded-2xl border border-dark-700 p-5 mb-8">
-          <div className="flex items-center gap-2 mb-3">
-            <Sparkles className="w-5 h-5 text-amber-400" />
-            <h2 className="text-white font-semibold text-sm">Quick Setup</h2>
+        {/* AI Chat */}
+        <div className="bg-dark-800 rounded-2xl border border-dark-700 mb-8 overflow-hidden">
+          <div className="flex items-center gap-2 px-5 py-3 border-b border-dark-700 bg-dark-900/50">
+            <Bot className="w-5 h-5 text-emerald-400" />
+            <h2 className="text-white font-semibold text-sm">AI Caddie</h2>
+            <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-900/40 text-emerald-400 font-medium">
+              powered by Claude
+            </span>
           </div>
-          <p className="text-gray-500 text-xs mb-3">
-            Type your availability and we&apos;ll fill in the times for you.
-          </p>
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={availabilityText}
-              onChange={e => { setAvailabilityText(e.target.value); setAiError(null) }}
-              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleGenerateTimes() } }}
-              placeholder='e.g., "Saturday morning or Sunday after 2pm"'
-              className="flex-1 bg-dark-700 border border-dark-600 text-gray-100 placeholder-gray-500 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-amber-500 focus:border-transparent outline-none"
-            />
-            <button
-              type="button"
-              onClick={handleGenerateTimes}
-              disabled={!availabilityText.trim()}
-              className="inline-flex items-center gap-1.5 bg-amber-600 text-white px-4 py-3 rounded-xl font-medium text-sm hover:bg-amber-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
-            >
-              <Sparkles className="w-4 h-4" />
-              Fill Times
-            </button>
-          </div>
-          {aiError && (
-            <p className="text-red-400 text-xs mt-2">{aiError}</p>
-          )}
-          <div className="flex flex-wrap gap-2 mt-3">
-            {['Saturday morning', 'This weekend', 'Tomorrow after 2pm', 'Friday at 10am or Saturday 8am'].map(example => (
-              <button
-                key={example}
-                type="button"
-                onClick={() => { setAvailabilityText(example); setAiError(null) }}
-                className="text-xs px-2.5 py-1 rounded-full bg-dark-700 text-gray-400 hover:text-amber-400 hover:bg-dark-600 transition-colors border border-dark-600"
-              >
-                {example}
-              </button>
+
+          {/* Messages */}
+          <div className="px-4 py-4 max-h-80 overflow-y-auto space-y-3">
+            {chatMessages.map((msg, i) => (
+              <div key={i} className={`flex gap-2.5 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
+                <div className={`w-7 h-7 rounded-full flex-shrink-0 flex items-center justify-center ${
+                  msg.role === 'assistant' ? 'bg-emerald-900/50 text-emerald-400' : 'bg-dark-600 text-gray-300'
+                }`}>
+                  {msg.role === 'assistant' ? <Bot className="w-4 h-4" /> : <UserIcon className="w-4 h-4" />}
+                </div>
+                <div className={`max-w-[80%] ${msg.role === 'user' ? 'text-right' : ''}`}>
+                  <div className={`inline-block px-3.5 py-2.5 rounded-2xl text-sm leading-relaxed ${
+                    msg.role === 'assistant'
+                      ? 'bg-dark-700 text-gray-200 rounded-tl-md'
+                      : 'bg-emerald-600 text-white rounded-tr-md'
+                  }`}>
+                    {msg.content}
+                  </div>
+
+                  {/* Show parsed times */}
+                  {msg.role === 'assistant' && msg.times && msg.times.length > 0 && (
+                    <div className="mt-2 space-y-1">
+                      {msg.times.map((t, j) => (
+                        <div key={j} className="inline-flex items-center gap-1.5 bg-dark-700 border border-dark-600 px-2.5 py-1 rounded-lg text-xs text-gray-300 mr-1">
+                          <Calendar className="w-3 h-3 text-emerald-400" />
+                          {t.label}
+                        </div>
+                      ))}
+                      {!timesApplied && (
+                        <button
+                          type="button"
+                          onClick={() => applyTimes(msg.times!)}
+                          className="inline-flex items-center gap-1 mt-1 px-2.5 py-1 rounded-lg text-xs font-medium bg-emerald-600 text-white hover:bg-emerald-700 transition-colors"
+                        >
+                          <Check className="w-3 h-3" />
+                          Use these times
+                        </button>
+                      )}
+                      {timesApplied && (
+                        <span className="inline-flex items-center gap-1 mt-1 px-2.5 py-1 rounded-lg text-xs font-medium text-emerald-400">
+                          <Check className="w-3 h-3" />
+                          Applied to form
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
             ))}
+
+            {chatLoading && (
+              <div className="flex gap-2.5">
+                <div className="w-7 h-7 rounded-full flex-shrink-0 flex items-center justify-center bg-emerald-900/50 text-emerald-400">
+                  <Bot className="w-4 h-4" />
+                </div>
+                <div className="bg-dark-700 px-4 py-3 rounded-2xl rounded-tl-md">
+                  <div className="flex gap-1">
+                    <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                    <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                    <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                  </div>
+                </div>
+              </div>
+            )}
+            <div ref={chatEndRef} />
           </div>
+
+          {/* Chat Input */}
+          <div className="px-4 py-3 border-t border-dark-700 bg-dark-900/30">
+            <div className="flex gap-2">
+              <input
+                ref={chatInputRef}
+                type="text"
+                value={chatInput}
+                onChange={e => setChatInput(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleChatSend() } }}
+                placeholder="Tell me when you're free..."
+                disabled={chatLoading}
+                className="flex-1 bg-dark-700 border border-dark-600 text-gray-100 placeholder-gray-500 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none disabled:opacity-50"
+              />
+              <button
+                type="button"
+                onClick={handleChatSend}
+                disabled={!chatInput.trim() || chatLoading}
+                className="p-2.5 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                <Send className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Divider */}
+        <div className="flex items-center gap-3 mb-6">
+          <div className="flex-1 h-px bg-dark-700" />
+          <span className="text-xs text-gray-500 font-medium uppercase tracking-wider">or fill in manually</span>
+          <div className="flex-1 h-px bg-dark-700" />
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
