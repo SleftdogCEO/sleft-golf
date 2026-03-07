@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   Home,
   Activity,
@@ -13,8 +13,10 @@ import {
   X,
   Trophy,
   Calendar,
+  LogOut,
 } from "lucide-react";
-import { getGuestName } from "@/lib/guest";
+import { useUser } from "@/hooks/use-user";
+import { createClient } from "@/lib/supabase/client";
 
 const navLinks = [
   { href: "/feed", label: "Feed", icon: Home },
@@ -31,19 +33,28 @@ const navLinks = [
 export default function Nav() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const pathname = usePathname();
-  const guestName = getGuestName();
+  const router = useRouter();
+  const { profile } = useUser();
+  const supabase = createClient();
+
+  const displayName = profile?.full_name || null;
 
   const getInitials = () => {
-    if (guestName) {
-      return guestName
+    if (displayName) {
+      return displayName
         .split(" ")
-        .map((n) => n[0])
+        .map((n: string) => n[0])
         .join("")
         .toUpperCase()
         .slice(0, 2);
     }
     return "?";
   };
+
+  async function handleLogout() {
+    await supabase.auth.signOut();
+    router.push("/login");
+  }
 
   return (
     <>
@@ -84,9 +95,16 @@ export default function Nav() {
               <div className="w-8 h-8 rounded-full bg-emerald-500 border-2 border-dark-600 flex items-center justify-center text-xs font-bold">
                 {getInitials()}
               </div>
-              {guestName && (
-                <span className="text-sm text-gray-400">{guestName}</span>
+              {displayName && (
+                <span className="text-sm text-gray-400">{displayName}</span>
               )}
+              <button
+                onClick={handleLogout}
+                className="p-2 rounded-lg text-gray-500 hover:text-red-400 hover:bg-dark-800 transition-colors"
+                title="Log out"
+              >
+                <LogOut size={16} />
+              </button>
             </div>
 
             {/* Mobile hamburger */}
@@ -118,7 +136,7 @@ export default function Nav() {
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold truncate">
-                  {guestName || "Golfer"}
+                  {displayName || "Golfer"}
                 </p>
               </div>
             </div>
@@ -144,6 +162,15 @@ export default function Nav() {
                   </Link>
                 );
               })}
+
+              {/* Logout */}
+              <button
+                onClick={() => { setMobileOpen(false); handleLogout(); }}
+                className="flex items-center gap-3 px-3 py-3 rounded-lg text-sm font-medium text-gray-400 hover:bg-dark-800 hover:text-red-400 transition-colors mt-4 border-t border-dark-700 pt-4"
+              >
+                <LogOut size={20} />
+                <span>Log Out</span>
+              </button>
             </div>
           </div>
         </div>

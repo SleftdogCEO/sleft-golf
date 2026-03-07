@@ -24,8 +24,7 @@ import {
 } from 'lucide-react'
 import { format, formatDistanceToNow, isPast, differenceInHours, differenceInMinutes, differenceInSeconds } from 'date-fns'
 import { WeatherWidget } from '@/components/weather-widget'
-import { useGuest } from '@/hooks/use-guest'
-import { GuestPrompt } from '@/components/guest-prompt'
+import { useUser } from '@/hooks/use-user'
 
 export default function MatchRoomPage() {
   const { id } = useParams<{ id: string }>()
@@ -33,7 +32,7 @@ export default function MatchRoomPage() {
   const supabase = createClient()
   const chatEndRef = useRef<HTMLDivElement>(null)
   const chatContainerRef = useRef<HTMLDivElement>(null)
-  const { profile: guestProfile, showNamePrompt, setName } = useGuest()
+  const { userId, profile } = useUser()
 
   const [meetup, setMeetup] = useState<Meetup | null>(null)
   const [messages, setMessages] = useState<MeetupMessage[]>([])
@@ -46,10 +45,10 @@ export default function MatchRoomPage() {
   const [showPlayerEmails, setShowPlayerEmails] = useState(false)
   const [joining, setJoining] = useState(false)
 
-  // Set user from guest profile
+  // Set user from auth profile
   useEffect(() => {
-    if (guestProfile) setUser(guestProfile)
-  }, [guestProfile])
+    if (profile) setUser(profile)
+  }, [profile])
 
   // Fetch meetup
   const fetchMeetup = useCallback(async () => {
@@ -310,7 +309,6 @@ export default function MatchRoomPage() {
 
   return (
     <div className="min-h-screen bg-dark-950">
-      {showNamePrompt && <GuestPrompt onSubmit={setName} />}
       <div className="max-w-4xl mx-auto px-4 py-6">
 
         {/* Back button */}

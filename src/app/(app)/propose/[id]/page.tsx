@@ -9,8 +9,7 @@ import {
   Smartphone, Copy, Users, ChevronRight, Loader2,
 } from 'lucide-react'
 import { format } from 'date-fns'
-import { useGuest } from '@/hooks/use-guest'
-import { GuestPrompt } from '@/components/guest-prompt'
+import { useUser } from '@/hooks/use-user'
 
 type Vote = {
   user_id: string
@@ -47,7 +46,7 @@ export default function ProposalPage() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
   const supabase = createClient()
-  const { guestId, profile, showNamePrompt, setName } = useGuest()
+  const { userId, profile } = useUser()
 
   const [proposal, setProposal] = useState<Proposal | null>(null)
   const [timeOptions, setTimeOptions] = useState<TimeOption[]>([])
@@ -115,11 +114,11 @@ export default function ProposalPage() {
   }, [fetchProposal])
 
   async function voteTime(timeId: string, vote: string) {
-    if (!guestId) return
+    if (!userId) return
 
     const existing = timeOptions
       .find(t => t.id === timeId)
-      ?.votes.find(v => v.user_id === guestId)
+      ?.votes.find(v => v.user_id === userId)
 
     if (existing?.vote === vote) {
       // Remove vote
@@ -127,13 +126,13 @@ export default function ProposalPage() {
         .from('proposal_time_votes')
         .delete()
         .eq('proposal_time_id', timeId)
-        .eq('user_id', guestId)
+        .eq('user_id', userId)
     } else {
       // Upsert vote
       await supabase
         .from('proposal_time_votes')
         .upsert(
-          { proposal_time_id: timeId, user_id: guestId, vote },
+          { proposal_time_id: timeId, user_id: userId, vote },
           { onConflict: 'proposal_time_id,user_id' }
         )
     }
@@ -141,23 +140,23 @@ export default function ProposalPage() {
   }
 
   async function voteCourse(courseOptionId: string, vote: string) {
-    if (!guestId) return
+    if (!userId) return
 
     const existing = courseOptions
       .find(c => c.id === courseOptionId)
-      ?.votes.find(v => v.user_id === guestId)
+      ?.votes.find(v => v.user_id === userId)
 
     if (existing?.vote === vote) {
       await supabase
         .from('proposal_course_votes')
         .delete()
         .eq('proposal_course_id', courseOptionId)
-        .eq('user_id', guestId)
+        .eq('user_id', userId)
     } else {
       await supabase
         .from('proposal_course_votes')
         .upsert(
-          { proposal_course_id: courseOptionId, user_id: guestId, vote },
+          { proposal_course_id: courseOptionId, user_id: userId, vote },
           { onConflict: 'proposal_course_id,user_id' }
         )
     }
@@ -165,7 +164,7 @@ export default function ProposalPage() {
   }
 
   async function confirmRound(timeId: string, courseOptionId?: string) {
-    if (!guestId || !proposal) return
+    if (!userId || !proposal) return
     setConfirming(true)
 
     const time = timeOptions.find(t => t.id === timeId)
@@ -236,7 +235,7 @@ export default function ProposalPage() {
   }
 
   function getMyVote(votes: { user_id: string; vote: string }[]) {
-    return votes.find(v => v.user_id === guestId)?.vote || null
+    return votes.find(v => v.user_id === userId)?.vote || null
   }
 
   function getVoteCounts(votes: { vote: string }[]) {
@@ -311,7 +310,7 @@ export default function ProposalPage() {
     )
   }
 
-  const isOrganizer = guestId === proposal.organizer_id
+  const isOrganizer = userId === proposal.organizer_id
   const allVoters = getAllVoters()
   const bestTime = timeOptions.length > 0
     ? timeOptions.reduce((best, t) => {
@@ -330,7 +329,6 @@ export default function ProposalPage() {
 
   return (
     <div className="min-h-screen bg-dark-950">
-      {showNamePrompt && <GuestPrompt onSubmit={setName} />}
       <div className="max-w-lg mx-auto px-4 py-6">
 
         <Link

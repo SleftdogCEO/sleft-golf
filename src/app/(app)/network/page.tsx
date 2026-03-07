@@ -17,8 +17,7 @@ import {
   Users,
   UserCheck,
 } from 'lucide-react';
-import { useGuest } from '@/hooks/use-guest';
-import { GuestPrompt } from '@/components/guest-prompt';
+import { useUser } from '@/hooks/use-user';
 
 type NetworkTab = 'discover' | 'network' | 'pending';
 
@@ -29,7 +28,7 @@ interface ConnectionWithProfiles extends Connection {
 
 export default function NetworkPage() {
   const supabase = createClient();
-  const { guestId, profile: guestProfile, showNamePrompt, setName } = useGuest();
+  const { userId } = useUser();
 
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [profiles, setProfiles] = useState<Profile[]>([]);
@@ -40,7 +39,7 @@ export default function NetworkPage() {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
-    if (!guestId) {
+    if (!userId) {
       // Still fetch profiles even without a guest id
       const { data } = await supabase
         .from('profiles')
@@ -52,27 +51,27 @@ export default function NetworkPage() {
     }
 
     setLoading(true);
-    setCurrentUserId(guestId);
+    setCurrentUserId(userId);
 
     const [profilesRes, connectionsRes] = await Promise.all([
       supabase
         .from('profiles')
         .select('*')
         .eq('is_public', true)
-        .neq('id', guestId),
+        .neq('id', userId),
       supabase
         .from('connections')
         .select(
           '*, requester:profiles!requester_id(*), addressee:profiles!addressee_id(*)'
         )
-        .or(`requester_id.eq.${guestId},addressee_id.eq.${guestId}`),
+        .or(`requester_id.eq.${userId},addressee_id.eq.${userId}`),
     ]);
 
     if (profilesRes.data) setProfiles(profilesRes.data as Profile[]);
     if (connectionsRes.data) setConnections(connectionsRes.data as ConnectionWithProfiles[]);
 
     setLoading(false);
-  }, [supabase, guestId]);
+  }, [supabase, userId]);
 
   useEffect(() => {
     fetchData();
@@ -364,7 +363,6 @@ export default function NetworkPage() {
 
   return (
     <div className="min-h-screen bg-dark-950">
-      {showNamePrompt && <GuestPrompt onSubmit={setName} />}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <div className="mb-8">

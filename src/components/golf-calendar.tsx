@@ -14,7 +14,7 @@ import {
   Calendar as CalendarIcon,
 } from 'lucide-react'
 import { WeatherWidget } from '@/components/weather-widget'
-import { getGuestId } from '@/lib/guest'
+import { useUser } from '@/hooks/use-user'
 
 type RoundWithJoins = Round & { profiles?: Profile; courses?: Course }
 
@@ -71,6 +71,7 @@ const MONTH_NAMES = [
 
 export function GolfCalendar() {
   const supabase = createClient()
+  const { userId } = useUser()
   const now = new Date()
 
   const [currentMonth, setCurrentMonth] = useState(now.getMonth())
@@ -80,7 +81,6 @@ export function GolfCalendar() {
   const [selectedDay, setSelectedDay] = useState<CalendarDay | null>(null)
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [courses, setCourses] = useState<Course[]>([])
-  const [userId, setUserId] = useState<string | null>(null)
 
   // Create round form
   const [newCourseId, setNewCourseId] = useState('')
@@ -110,17 +110,14 @@ export function GolfCalendar() {
   }, [fetchRounds])
 
   useEffect(() => {
-    async function init() {
-      const id = getGuestId()
-      if (id) setUserId(id)
-
+    async function fetchCourses() {
       const { data: courseData } = await supabase
         .from('courses')
         .select('*')
         .order('name')
       if (courseData) setCourses(courseData)
     }
-    init()
+    fetchCourses()
   }, [supabase])
 
   // Build calendar grid

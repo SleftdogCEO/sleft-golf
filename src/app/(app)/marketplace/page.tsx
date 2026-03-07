@@ -12,8 +12,7 @@ import {
   X,
   Package,
 } from 'lucide-react';
-import { useGuest } from '@/hooks/use-guest';
-import { GuestPrompt } from '@/components/guest-prompt';
+import { useUser } from '@/hooks/use-user';
 
 const CATEGORY_OPTIONS: { value: ListingCategory; label: string }[] = [
   { value: 'drivers', label: 'Drivers' },
@@ -68,7 +67,7 @@ interface CreateListingForm {
 
 export default function MarketplacePage() {
   const supabase = createClient();
-  const { guestId, showNamePrompt, setName } = useGuest();
+  const { userId } = useUser();
 
   const [listings, setListings] = useState<ListingWithProfile[]>([]);
   const [loading, setLoading] = useState(true);
@@ -136,13 +135,13 @@ export default function MarketplacePage() {
     setSubmitting(true);
 
     try {
-      if (!guestId) return;
+      if (!userId) return;
 
       const imageUrls: string[] = [];
 
       for (const file of formData.images) {
         const fileExt = file.name.split('.').pop();
-        const filePath = `${guestId}/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+        const filePath = `${userId}/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
         const { error: uploadError } = await supabase.storage
           .from('listings')
           .upload(filePath, file);
@@ -156,7 +155,7 @@ export default function MarketplacePage() {
       }
 
       const { error } = await supabase.from('listings').insert({
-        seller_id: guestId,
+        seller_id: userId,
         title: formData.title,
         description: formData.description,
         category: formData.category,
@@ -201,7 +200,6 @@ export default function MarketplacePage() {
 
   return (
     <div className="min-h-screen bg-dark-950">
-      {showNamePrompt && <GuestPrompt onSubmit={setName} />}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">

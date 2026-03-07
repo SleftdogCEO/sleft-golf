@@ -4,8 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Plus, X, Calendar, MapPin, Send, Smartphone } from 'lucide-react'
-import { useGuest } from '@/hooks/use-guest'
-import { GuestPrompt } from '@/components/guest-prompt'
+import { useUser } from '@/hooks/use-user'
 
 type CourseOption = {
   id: string
@@ -18,7 +17,7 @@ type CourseOption = {
 export default function ProposePage() {
   const supabase = createClient()
   const router = useRouter()
-  const { guestId, profile, showNamePrompt, setName } = useGuest()
+  const { userId, profile } = useUser()
 
   const [title, setTitle] = useState('')
   const [message, setMessage] = useState('')
@@ -67,7 +66,7 @@ export default function ProposePage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!guestId || !title.trim() || times.filter(t => t).length === 0) return
+    if (!userId || !title.trim() || times.filter(t => t).length === 0) return
 
     setSubmitting(true)
 
@@ -75,7 +74,7 @@ export default function ProposePage() {
       .from('proposals')
       .insert({
         title: title.trim(),
-        organizer_id: guestId,
+        organizer_id: userId,
         message: message.trim() || null,
       })
       .select()
@@ -121,7 +120,6 @@ export default function ProposePage() {
 
   return (
     <div className="min-h-screen bg-dark-950">
-      {showNamePrompt && <GuestPrompt onSubmit={setName} />}
       <div className="max-w-lg mx-auto px-4 py-8">
         <h1 className="text-3xl font-bold text-white mb-2">Propose a Round</h1>
         <p className="text-gray-400 mb-8">
