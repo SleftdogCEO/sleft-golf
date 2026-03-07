@@ -36,7 +36,8 @@ export async function updateSession(request: NextRequest) {
     pathname === '/' ||
     pathname.startsWith('/login') ||
     pathname.startsWith('/signup') ||
-    pathname.startsWith('/auth/')
+    pathname.startsWith('/auth/') ||
+    pathname.startsWith('/api/')
 
   // If not authenticated and trying to access a protected route, redirect to login
   if (!user && !isPublicRoute) {
