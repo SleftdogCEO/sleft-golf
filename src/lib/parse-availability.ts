@@ -229,9 +229,103 @@ function toDateTimeLocal(date: Date): string {
   return format(date, "yyyy-MM-dd'T'HH:mm")
 }
 
+// Canonical day names in week order (Mon-Sun)
+const ALL_DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] as const
+const DAY_FNS: Record<string, (date: Date) => Date> = {
+  monday: nextMonday, tuesday: nextTuesday, wednesday: nextWednesday,
+  thursday: nextThursday, friday: nextFriday, saturday: nextSaturday, sunday: nextSunday,
+}
+
+function findExcludedDays(text: string): string[] {
+  const lower = text.toLowerCase()
+  const excluded: string[] = []
+  for (const [name] of Object.entries(DAY_MAP)) {
+    // Check if this day name appears after "except", "but", "not", "besides", "other than"
+    const pattern = new RegExp(`(?:except|but|not|besides|other\\s+than|excluding)\\s+(?:for\\s+)?(?:\\w+\\s+(?:and|or|,)\\s+)*${name}`, 'i')
+    const pattern2 = new RegExp(`${name}\\s*(?:doesn't|doesn\\'t|does not|won't|won\\'t|will not|can't|can\\'t|cannot)`, 'i')
+    if (pattern.test(lower) || pattern2.test(lower)) {
+      // Map short names to canonical
+      const canonical = Object.entries(DAY_MAP).find(([k]) => k === name)?.[1]
+      if (canonical) {
+        const canonicalName = ALL_DAYS.find(d => DAY_FNS[d] === canonical)
+        if (canonicalName && !excluded.includes(canonicalName)) excluded.push(canonicalName)
+      }
+    }
+  }
+  return excluded
+}
+
+function isAnyDayPattern(text: string): boolean {
+  return /\b(any\s+day|every\s+day|all\s+days|all\s+week|whenever|any\s+time|open\s+all\s+week|weekdays?)\b/i.test(text)
+}
+
+function isExceptPattern(text: string): boolean {
+  return /\b(except|but\s+not|but|besides|other\s+than|excluding|not)\b/i.test(text)
+}
+
 export function parseAvailability(input: string): ParsedSlot[] {
   const now = new Date()
+  const today = startOfDay(now)
   const slots: ParsedSlot[] = []
+
+  // Handle "any day except X" / "every day but X" / "weekdays except X"
+  if (isAnyDayPattern(input) && isExceptPattern(input)) {
+    const excluded = findExcludedDays(input)
+    const time = parseTime(input)
+    const h = time ? time[0] : 8
+    const m = time ? time[1] : 0
+
+    const isWeekdaysOnly = /\bweekdays?\b/i.test(input)
+    const daysToUse = isWeekdaysOnly
+      ? ALL_DAYS.filter(d => d !== 'saturday' && d !== 'sunday')
+      : [...ALL_DAYS]
+
+    for (const day of daysToUse) {
+      if (excluded.includes(day)) continue
+      const date = DAY_FNS[day](today)
+      const dateWithTime = setMinutes(setHours(new Date(date), h), m)
+      slots.push({
+        dateTime: toDateTimeLocal(dateWithTime),
+        label: `${format(date, 'EEEE, MMM d')} at ${format(dateWithTime, 'h:mm a')}`,
+      })
+    }
+    return slots
+  }
+
+  // Handle "any day" / "every day" without exceptions
+  if (isAnyDayPattern(input) && !isExceptPattern(input)) {
+    const time = parseTime(input)
+    const h = time ? time[0] : 8
+    const m = time ? time[1] : 0
+
+    const isWeekdaysOnly = /\bweekdays?\b/i.test(input)
+    const daysToUse = isWeekdaysOnly
+      ? ALL_DAYS.filter(d => d !== 'saturday' && d !== 'sunday')
+      : [...ALL_DAYS]
+
+    for (const day of daysToUse) {
+      const date = DAY_FNS[day](today)
+      const dateWithTime = setMinutes(setHours(new Date(date), h), m)
+      slots.push({
+        dateTime: toDateTimeLocal(dateWithTime),
+        label: `${format(date, 'EEEE, MMM d')} at ${format(dateWithTime, 'h:mm a')}`,
+      })
+    }
+    return slots
+  }
+
+  // Handle "this weekend" as a single input
+  if (/this\s+weekend/i.test(input)) {
+    const sat = nextSaturday(today)
+    const sun = addDays(sat, 1)
+    const time = parseTime(input)
+    const h = time ? time[0] : 8
+    const m = time ? time[1] : 0
+    return [
+      { dateTime: toDateTimeLocal(setMinutes(setHours(sat, h), m)), label: `${format(sat, 'EEEE, MMM d')} at ${format(setMinutes(setHours(sat, h), m), 'h:mm a')}` },
+      { dateTime: toDateTimeLocal(setMinutes(setHours(sun, h), m)), label: `${format(sun, 'EEEE, MMM d')} at ${format(setMinutes(setHours(sun, h), m), 'h:mm a')}` },
+    ]
+  }
 
   // Split on common separators: "or", ",", "&", "and", "/"
   const segments = input
@@ -248,7 +342,6 @@ export function parseAvailability(input: string): ParsedSlot[] {
     const isAnytime = /\b(anytime|any\s*time|all\s*day|flexible|whenever)\b/i.test(segment)
 
     if (isAnytime) {
-      // Generate morning + afternoon slots
       const morning = setMinutes(setHours(new Date(date), 8), 0)
       const afternoon = setMinutes(setHours(new Date(date), 14), 0)
       slots.push({
@@ -266,26 +359,12 @@ export function parseAvailability(input: string): ParsedSlot[] {
         label: `${format(date, 'EEEE, MMM d')} at ${format(dateWithTime, 'h:mm a')}`,
       })
     } else {
-      // No time specified, default to 8am tee time
       const dateWithTime = setMinutes(setHours(new Date(date), 8), 0)
       slots.push({
         dateTime: toDateTimeLocal(dateWithTime),
         label: `${format(date, 'EEEE, MMM d')} at 8:00 AM`,
       })
     }
-  }
-
-  // Handle "this weekend" as a single segment that should produce sat + sun
-  if (/this\s+weekend/i.test(input) && segments.length === 1) {
-    const sat = nextSaturday(startOfDay(now))
-    const sun = addDays(sat, 1)
-    const time = parseTime(input)
-    const h = time ? time[0] : 8
-    const m = time ? time[1] : 0
-    return [
-      { dateTime: toDateTimeLocal(setMinutes(setHours(sat, h), m)), label: `${format(sat, 'EEEE, MMM d')} at ${format(setMinutes(setHours(sat, h), m), 'h:mm a')}` },
-      { dateTime: toDateTimeLocal(setMinutes(setHours(sun, h), m)), label: `${format(sun, 'EEEE, MMM d')} at ${format(setMinutes(setHours(sun, h), m), 'h:mm a')}` },
-    ]
   }
 
   return slots
