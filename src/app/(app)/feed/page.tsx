@@ -23,6 +23,7 @@ export default function FeedPage() {
   const [imagePreview, setImagePreview] = useState<string | null>(null)
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const [postError, setPostError] = useState<string | null>(null)
   const [likedPosts, setLikedPosts] = useState<Set<string>>(new Set())
   const [postReactions, setPostReactions] = useState<Record<string, Record<string, { count: number; reacted: boolean }>>>({})
 
@@ -90,6 +91,7 @@ export default function FeedPage() {
     if (!user || (!newPostContent.trim() && !imageFile)) return
 
     setSubmitting(true)
+    setPostError(null)
     let imageUrls: string[] = []
 
     try {
@@ -101,6 +103,9 @@ export default function FeedPage() {
 
         if (uploadError) {
           console.error('Upload error:', uploadError)
+          setPostError('Photo failed to upload. Try again or post without the image.')
+          setSubmitting(false)
+          return
         } else {
           const { data: urlData } = supabase.storage
             .from('posts')
@@ -121,6 +126,7 @@ export default function FeedPage() {
 
       if (error) {
         console.error('Error creating post:', error)
+        setPostError('Failed to create post. Please try again.')
       } else if (newPost) {
         setPosts([newPost, ...posts])
         setNewPostContent('')
@@ -283,6 +289,12 @@ export default function FeedPage() {
                 >
                   x
                 </button>
+              </div>
+            )}
+
+            {postError && (
+              <div className="mt-3 ml-13 bg-red-900/30 border border-red-800/50 text-red-300 text-sm px-4 py-3 rounded-xl">
+                {postError}
               </div>
             )}
 
