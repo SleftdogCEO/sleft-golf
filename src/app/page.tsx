@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { Activity, ShoppingBag, Users, Camera, Trophy, MapPin } from 'lucide-react'
+import { Search, Users, Calendar, MessageCircle, MapPin, Hand } from 'lucide-react'
 
 export default function HomePage() {
   return (
@@ -29,66 +29,98 @@ export default function HomePage() {
 
         <div className="relative mx-auto max-w-7xl px-6 pb-24 pt-20 text-center">
           <h1 className="mx-auto max-w-4xl text-5xl font-bold tracking-tight text-white sm:text-7xl">
-            Golf is better{' '}
-            <span className="text-emerald-300">together</span>
+            Find golfers{' '}
+            <span className="text-emerald-300">near you</span>
           </h1>
           <p className="mx-auto mt-6 max-w-2xl text-lg text-emerald-200">
-            See who&apos;s playing live, share your best rounds, buy and sell equipment,
-            and connect with golfers who share your passion for the game.
+            Post when you want to play. Find players at your skill level in your area.
+            No more empty spots or playing alone.
           </p>
           <div className="mt-10 flex items-center justify-center gap-4">
             <Link href="/signup" className="rounded-full bg-white px-8 py-3 text-base font-semibold text-emerald-900 shadow-lg hover:bg-emerald-50 transition-colors">
-              Get started
+              Start playing
             </Link>
-            <Link href="#features" className="rounded-full border border-emerald-400 px-8 py-3 text-base font-semibold text-emerald-200 hover:bg-emerald-800/50 transition-colors">
-              Learn more
+            <Link href="#how-it-works" className="rounded-full border border-emerald-400 px-8 py-3 text-base font-semibold text-emerald-200 hover:bg-emerald-800/50 transition-colors">
+              How it works
             </Link>
           </div>
         </div>
       </header>
 
-      {/* Features */}
-      <section id="features" className="mx-auto max-w-7xl px-6 py-24">
+      {/* How it works */}
+      <section id="how-it-works" className="mx-auto max-w-7xl px-6 py-24">
         <div className="text-center">
           <h2 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
-            Everything you need on the course and off
+            Three taps to a tee time
           </h2>
           <p className="mx-auto mt-4 max-w-2xl text-lg text-gray-400">
-            Sleft Golf brings golfers together with tools designed for how you actually play.
+            Stop texting group chats. Stop playing solo. Find your foursome in seconds.
           </p>
         </div>
 
-        <div className="mt-16 grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
-          <FeatureCard
-            icon={<Activity className="h-6 w-6 text-emerald-600" />}
-            title="Live Course Activity"
-            description="See who's playing where right now. Find open groups, track tee times, and never play alone unless you want to."
+        <div className="mt-16 grid gap-8 sm:grid-cols-3">
+          <StepCard
+            step="1"
+            icon={<Hand className="h-6 w-6 text-emerald-400" />}
+            title="Post your availability"
+            description="Pick a day, time of day, and your area. Takes 10 seconds."
           />
-          <FeatureCard
-            icon={<Trophy className="h-6 w-6 text-emerald-600" />}
-            title="Leaderboards & Scorecards"
-            description="Track your scores, compete with friends, and climb the daily leaderboard. See the best rounds happening across your network."
+          <StepCard
+            step="2"
+            icon={<Search className="h-6 w-6 text-emerald-400" />}
+            title="Get matched"
+            description="Golfers near you at your skill level see your post and tap &quot;I'm In.&quot;"
           />
-          <FeatureCard
-            icon={<Camera className="h-6 w-6 text-emerald-600" />}
-            title="Share Your Golf Day"
-            description="Upload photos from the course, share that perfect drive, or document the 19th hole. Your golf life, one feed."
+          <StepCard
+            step="3"
+            icon={<Calendar className="h-6 w-6 text-emerald-400" />}
+            title="Play golf"
+            description="Lock in the course, tee time, and go. Chat with your group to coordinate."
           />
-          <FeatureCard
-            icon={<ShoppingBag className="h-6 w-6 text-emerald-600" />}
-            title="Equipment Marketplace"
-            description="Buy and sell clubs, bags, balls, and gear with fellow golfers. Find deals from people who actually play."
-          />
-          <FeatureCard
-            icon={<Users className="h-6 w-6 text-emerald-600" />}
-            title="Golf Networking"
-            description="Connect professionally through the game. See what people do off the course and build relationships that matter."
-          />
-          <FeatureCard
-            icon={<MapPin className="h-6 w-6 text-emerald-600" />}
-            title="Coordinate & Play"
-            description="Invite friends to rounds, find playing partners at your skill level, and organize outings. Golf made social."
-          />
+        </div>
+      </section>
+
+      {/* Features */}
+      <section className="bg-dark-900 border-y border-dark-800">
+        <div className="mx-auto max-w-7xl px-6 py-24">
+          <div className="text-center">
+            <h2 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
+              Built for how golfers actually play
+            </h2>
+          </div>
+
+          <div className="mt-16 grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
+            <FeatureCard
+              icon={<Hand className="h-6 w-6 text-emerald-600" />}
+              title="Looking to Play Board"
+              description="Post your availability and area. Other golfers nearby see it and join up. Like a bulletin board for finding playing partners."
+            />
+            <FeatureCard
+              icon={<Users className="h-6 w-6 text-emerald-600" />}
+              title="Skill-Level Matching"
+              description="Set your handicap and find players at your level. No more awkward mismatches — play with people who match your game."
+            />
+            <FeatureCard
+              icon={<MapPin className="h-6 w-6 text-emerald-600" />}
+              title="Area-Based Discovery"
+              description="Search by area to find golfers near you. Whether you're in West Palm, Jupiter, or Boca — find your local crew."
+            />
+            <FeatureCard
+              icon={<Calendar className="h-6 w-6 text-emerald-600" />}
+              title="AI-Powered Scheduling"
+              description="Tell the Sleft Caddie when and where you want to play. It handles the rest — finds courses, suggests times, sets up the round."
+            />
+            <FeatureCard
+              icon={<MessageCircle className="h-6 w-6 text-emerald-600" />}
+              title="Group Chat"
+              description="Every tee time has a built-in chat. Coordinate who's driving, who's bringing beers, and what tees you're playing."
+            />
+            <FeatureCard
+              icon={<Search className="h-6 w-6 text-emerald-600" />}
+              title="No Empty Spots"
+              description="Need a 4th for Saturday? Post it. Looking for a game on a random Tuesday? Someone near you probably is too."
+            />
+          </div>
         </div>
       </section>
 
@@ -96,13 +128,13 @@ export default function HomePage() {
       <section className="bg-emerald-900">
         <div className="mx-auto max-w-7xl px-6 py-24 text-center">
           <h2 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
-            Ready to tee up?
+            Never play alone again
           </h2>
           <p className="mx-auto mt-4 max-w-xl text-lg text-emerald-200">
-            Join the community of golfers who are making every round count.
+            Join golfers in your area who are looking for the same thing — a good round with good people.
           </p>
           <Link href="/signup" className="mt-8 inline-block rounded-full bg-white px-8 py-3 text-base font-semibold text-emerald-900 shadow-lg hover:bg-emerald-50 transition-colors">
-            Start playing
+            Get started free
           </Link>
         </div>
       </section>
@@ -121,6 +153,21 @@ export default function HomePage() {
           </div>
         </div>
       </footer>
+    </div>
+  )
+}
+
+function StepCard({ step, icon, title, description }: { step: string; icon: React.ReactNode; title: string; description: string }) {
+  return (
+    <div className="relative rounded-2xl border border-dark-700 bg-dark-800 p-8 text-center">
+      <div className="absolute -top-4 left-1/2 -translate-x-1/2 flex h-8 w-8 items-center justify-center rounded-full bg-emerald-600 text-sm font-bold text-white">
+        {step}
+      </div>
+      <div className="mx-auto mt-2 flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-950">
+        {icon}
+      </div>
+      <h3 className="mt-4 text-lg font-semibold text-white">{title}</h3>
+      <p className="mt-2 text-gray-400">{description}</p>
     </div>
   )
 }
