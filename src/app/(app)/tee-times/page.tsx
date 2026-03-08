@@ -12,13 +12,12 @@ import {
   Check,
   X,
   MessageCircle,
-  ChevronRight,
   ArrowRight,
   Award,
   Search,
+  Hand,
 } from 'lucide-react'
 import { format, formatDistanceToNow, isPast } from 'date-fns'
-import { WeatherWidget } from '@/components/weather-widget'
 import { useUser } from '@/hooks/use-user'
 
 type MeetupAttendee = {
@@ -76,6 +75,7 @@ type CourseOption = {
 }
 
 type Filter = 'open' | 'my_times' | 'past'
+type CreateMode = 'looking' | 'specific'
 
 export default function TeeTimesPage() {
   const supabase = createClient()
@@ -84,14 +84,22 @@ export default function TeeTimesPage() {
   const [meetups, setMeetups] = useState<Meetup[]>([])
   const [loading, setLoading] = useState(true)
   const [showCreate, setShowCreate] = useState(false)
-  const [user, setUser] = useState<{ id: string; full_name: string; avatar_url: string | null } | null>(null)
+  const [createMode, setCreateMode] = useState<CreateMode>('looking')
+  const [user, setUser] = useState<{ id: string; full_name: string; avatar_url: string | null; handicap: number | null; location: string | null } | null>(null)
   const [filter, setFilter] = useState<Filter>('open')
   const [courses, setCourses] = useState<CourseOption[]>([])
   const [joining, setJoining] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
 
-  // Create form state
+  // Looking to Play form
+  const [ltpDay, setLtpDay] = useState('')
+  const [ltpTime, setLtpTime] = useState<'morning' | 'afternoon' | 'anytime'>('morning')
+  const [ltpArea, setLtpArea] = useState('')
+  const [ltpNotes, setLtpNotes] = useState('')
+  const [ltpPlayers, setLtpPlayers] = useState(4)
+
+  // Specific Tee Time form
   const [formTitle, setFormTitle] = useState('')
   const [formClub, setFormClub] = useState('')
   const [formCourseId, setFormCourseId] = useState('')
@@ -106,7 +114,14 @@ export default function TeeTimesPage() {
 
   useEffect(() => {
     if (profile) {
-      setUser({ id: profile.id, full_name: profile.full_name, avatar_url: profile.avatar_url })
+      setUser({
+        id: profile.id,
+        full_name: profile.full_name,
+        avatar_url: profile.avatar_url,
+        handicap: profile.handicap,
+        location: profile.location,
+      })
+      if (profile.location && !ltpArea) setLtpArea(profile.location)
     }
   }, [profile])
 
@@ -117,11 +132,7 @@ export default function TeeTimesPage() {
       .select('*, profiles(id, full_name, avatar_url, username, handicap, location), courses(*), meetup_attendees(*, profiles(id, full_name, avatar_url, username, handicap, location))')
       .order('tee_time', { ascending: true })
 
-    if (error) {
-      console.error('Error fetching tee times:', error)
-    } else {
-      setMeetups(data || [])
-    }
+    if (!error) setMeetups(data || [])
     setLoading(false)
   }
 
@@ -130,47 +141,78 @@ export default function TeeTimesPage() {
       .from('courses')
       .select('id, name, city, state, parent_club')
       .order('name', { ascending: true })
-
     if (data) setCourses(data)
   }
 
   async function handleJoin(meetupId: string) {
     if (!user) return
     setJoining(meetupId)
-
-    const { error } = await supabase
-      .from('meetup_attendees')
-      .insert({ meetup_id: meetupId, user_id: user.id })
-
-    if (!error) {
-      await fetchMeetups()
-    }
+    await supabase.from('meetup_attendees').insert({ meetup_id: meetupId, user_id: user.id })
+    await fetchMeetups()
     setJoining(null)
   }
 
   async function handleLeave(meetupId: string) {
     if (!user) return
     setJoining(meetupId)
-
-    const { error } = await supabase
-      .from('meetup_attendees')
-      .delete()
-      .eq('meetup_id', meetupId)
-      .eq('user_id', user.id)
-
-    if (!error) {
-      await fetchMeetups()
-    }
+    await supabase.from('meetup_attendees').delete().eq('meetup_id', meetupId).eq('user_id', user.id)
+    await fetchMeetups()
     setJoining(null)
   }
 
-  async function handleCreate(e: React.FormEvent) {
+  // Looking to Play submit
+  async function handleLtpSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!user || !formTitle.trim() || !formDateTime) return
-
+    if (!user || !ltpDay || !ltpArea.trim()) return
     setSubmitting(true)
 
-    const { data: newMeetup, error } = await supabase
+    const date = new Date(ltpDay)
+    const hour = ltpTime === 'morning' ? 8 : ltpTime === 'afternoon' ? 14 : 10
+    date.setHours(hour, 0, 0, 0)
+
+    const dayLabel = format(date, 'EEEE')
+    const timeLabel = ltpTime === 'anytime' ? '' : ` ${ltpTime}`
+    const title = `Looking to play ${dayLabel}${timeLabel} in ${ltpArea.trim()}`
+
+    const desc = [
+      `Area: ${ltpArea.trim()}`,
+      user.handicap != null ? `Handicap: ${user.handicap}` : null,
+      ltpNotes.trim() || null,
+    ].filter(Boolean).join('\n')
+
+    const { data: newMeetup } = await supabase
+      .from('meetups')
+      .insert({
+        title,
+        course_id: null,
+        tee_time: date.toISOString(),
+        max_players: ltpPlayers,
+        description: desc,
+        organizer_id: user.id,
+      })
+      .select()
+      .single()
+
+    if (newMeetup) {
+      await supabase.from('meetup_attendees').insert({ meetup_id: newMeetup.id, user_id: user.id })
+    }
+
+    setLtpDay('')
+    setLtpTime('morning')
+    setLtpNotes('')
+    setLtpPlayers(4)
+    setShowCreate(false)
+    setSubmitting(false)
+    await fetchMeetups()
+  }
+
+  // Specific Tee Time submit
+  async function handleSpecificSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!user || !formTitle.trim() || !formDateTime) return
+    setSubmitting(true)
+
+    const { data: newMeetup } = await supabase
       .from('meetups')
       .insert({
         title: formTitle.trim(),
@@ -183,16 +225,8 @@ export default function TeeTimesPage() {
       .select()
       .single()
 
-    if (error) {
-      console.error('Error creating tee time:', error)
-      setSubmitting(false)
-      return
-    }
-
     if (newMeetup) {
-      await supabase
-        .from('meetup_attendees')
-        .insert({ meetup_id: newMeetup.id, user_id: user.id })
+      await supabase.from('meetup_attendees').insert({ meetup_id: newMeetup.id, user_id: user.id })
     }
 
     setFormTitle('')
@@ -207,30 +241,46 @@ export default function TeeTimesPage() {
   }
 
   function isUserAttending(meetup: Meetup) {
-    if (!user) return false
-    return meetup.meetup_attendees?.some(a => a.user_id === user.id) ?? false
+    return user ? (meetup.meetup_attendees?.some(a => a.user_id === user.id) ?? false) : false
   }
 
   function getStatus(meetup: Meetup): 'open' | 'full' | 'past' {
     if (isPast(new Date(meetup.tee_time))) return 'past'
-    const attendeeCount = meetup.meetup_attendees?.length ?? 0
-    if (attendeeCount >= meetup.max_players) return 'full'
+    if ((meetup.meetup_attendees?.length ?? 0) >= meetup.max_players) return 'full'
     return 'open'
   }
 
-  function getHandicapLabel(handicap: number | null | undefined): string {
-    if (handicap == null) return 'Any level'
-    if (handicap <= 5) return 'Scratch'
-    if (handicap <= 12) return 'Low'
-    if (handicap <= 20) return 'Mid'
-    return 'High'
+  function isLookingToPlay(meetup: Meetup): boolean {
+    return !meetup.course_id
+  }
+
+  function getAreaFromDescription(desc: string | null): string | null {
+    if (!desc) return null
+    const match = desc.match(/^Area:\s*(.+)$/m)
+    return match ? match[1] : null
+  }
+
+  // Build quick day options
+  function getQuickDays() {
+    const days: { label: string; value: string }[] = []
+    const now = new Date()
+    for (let i = 0; i < 10; i++) {
+      const d = new Date(now)
+      d.setDate(d.getDate() + i)
+      const yyyy = d.getFullYear()
+      const mm = String(d.getMonth() + 1).padStart(2, '0')
+      const dd = String(d.getDate()).padStart(2, '0')
+      const val = `${yyyy}-${mm}-${dd}`
+      const label = i === 0 ? 'Today' : i === 1 ? 'Tomorrow' : format(d, 'EEE, MMM d')
+      days.push({ label, value: val })
+    }
+    return days
   }
 
   const filteredMeetups = meetups.filter(meetup => {
     const teeTime = new Date(meetup.tee_time)
     const status = getStatus(meetup)
 
-    // Filter by tab
     switch (filter) {
       case 'open':
         if (isPast(teeTime) || status === 'full') return false
@@ -244,7 +294,6 @@ export default function TeeTimesPage() {
         break
     }
 
-    // Filter by search
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase()
       const matchesCourse = meetup.courses?.name?.toLowerCase().includes(q) ||
@@ -252,7 +301,8 @@ export default function TeeTimesPage() {
         meetup.courses?.parent_club?.toLowerCase().includes(q)
       const matchesTitle = meetup.title.toLowerCase().includes(q)
       const matchesOrganizer = meetup.profiles?.full_name?.toLowerCase().includes(q)
-      if (!matchesCourse && !matchesTitle && !matchesOrganizer) return false
+      const matchesArea = getAreaFromDescription(meetup.description)?.toLowerCase().includes(q)
+      if (!matchesCourse && !matchesTitle && !matchesOrganizer && !matchesArea) return false
     }
 
     return true
@@ -264,6 +314,8 @@ export default function TeeTimesPage() {
     { key: 'past', label: 'Past' },
   ]
 
+  const quickDays = getQuickDays()
+
   return (
     <div className="min-h-screen bg-dark-950">
       <div className="max-w-3xl mx-auto px-4 py-8">
@@ -272,16 +324,16 @@ export default function TeeTimesPage() {
           <h1 className="text-3xl font-bold text-white">Tee Times</h1>
           {user && (
             <button
-              onClick={() => setShowCreate(true)}
+              onClick={() => { setShowCreate(true); setCreateMode('looking') }}
               className="inline-flex items-center gap-2 bg-emerald-600 text-white px-4 py-2.5 rounded-xl font-medium text-sm hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-900/30"
             >
-              <Plus className="w-4 h-4" />
-              Post a Tee Time
+              <Hand className="w-4 h-4" />
+              Looking to Play
             </button>
           )}
         </div>
         <p className="text-gray-400 mb-6">
-          Find open rounds near you. Join up with golfers at your level.
+          Post your availability and find golfers near you to play with.
         </p>
 
         {/* Search */}
@@ -291,7 +343,7 @@ export default function TeeTimesPage() {
             type="text"
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
-            placeholder="Search by course, city, or player..."
+            placeholder="Search by area, course, or player..."
             className="w-full bg-dark-800 border border-dark-700 text-gray-100 placeholder-gray-500 rounded-xl pl-11 pr-4 py-3 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none"
           />
         </div>
@@ -313,154 +365,205 @@ export default function TeeTimesPage() {
           ))}
         </div>
 
-        {/* Create Tee Time Modal */}
+        {/* Create Modal */}
         {showCreate && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <div
-              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-              onClick={() => setShowCreate(false)}
-            />
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowCreate(false)} />
             <div className="relative bg-dark-800 rounded-2xl border border-dark-700 shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-              <div className="flex items-center justify-between p-5 border-b border-dark-700">
-                <h2 className="text-lg font-bold text-white">Post a Tee Time</h2>
+              {/* Mode Toggle */}
+              <div className="flex border-b border-dark-700">
                 <button
-                  onClick={() => setShowCreate(false)}
-                  className="p-1.5 rounded-lg hover:bg-dark-700 text-gray-400 hover:text-white transition-colors"
+                  onClick={() => setCreateMode('looking')}
+                  className={`flex-1 px-5 py-4 text-sm font-semibold transition-colors ${
+                    createMode === 'looking'
+                      ? 'text-emerald-400 border-b-2 border-emerald-400'
+                      : 'text-gray-400 hover:text-white'
+                  }`}
                 >
-                  <X className="w-5 h-5" />
+                  <Hand className="w-4 h-4 inline mr-2" />
+                  Looking to Play
+                </button>
+                <button
+                  onClick={() => setCreateMode('specific')}
+                  className={`flex-1 px-5 py-4 text-sm font-semibold transition-colors ${
+                    createMode === 'specific'
+                      ? 'text-emerald-400 border-b-2 border-emerald-400'
+                      : 'text-gray-400 hover:text-white'
+                  }`}
+                >
+                  <Calendar className="w-4 h-4 inline mr-2" />
+                  Specific Tee Time
                 </button>
               </div>
 
-              <form onSubmit={handleCreate} className="p-5 space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1.5">Title</label>
-                  <input
-                    type="text"
-                    value={formTitle}
-                    onChange={e => setFormTitle(e.target.value)}
-                    placeholder='e.g., "Looking for a 4th this Saturday"'
-                    required
-                    className="w-full bg-dark-700 border border-dark-600 text-gray-100 placeholder-gray-500 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none"
-                  />
-                </div>
+              {/* Looking to Play Form */}
+              {createMode === 'looking' && (
+                <form onSubmit={handleLtpSubmit} className="p-5 space-y-4">
+                  <p className="text-gray-400 text-sm">
+                    Post your availability and area. Other golfers nearby can tap &quot;I&apos;m In&quot; to join up.
+                  </p>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1.5">Course</label>
-                  <input
-                    type="text"
-                    value={formClub}
-                    onChange={e => setFormClub(e.target.value)}
-                    placeholder="Search courses..."
-                    className="w-full bg-dark-700 border border-dark-600 text-gray-100 placeholder-gray-500 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none mb-2"
-                  />
-                  {formClub.trim() && (
-                    <div className="max-h-40 overflow-y-auto bg-dark-700 border border-dark-600 rounded-xl">
-                      {courses
-                        .filter(c => c.name.toLowerCase().includes(formClub.toLowerCase()) || c.parent_club?.toLowerCase().includes(formClub.toLowerCase()))
-                        .slice(0, 6)
-                        .map(course => (
-                          <button
-                            key={course.id}
-                            type="button"
-                            onClick={() => {
-                              setFormCourseId(course.id)
-                              setFormClub(course.parent_club ? `${course.parent_club} - ${course.name}` : course.name)
-                            }}
-                            className={`w-full text-left px-4 py-2.5 text-sm transition-colors border-b border-dark-600 last:border-b-0 ${
-                              formCourseId === course.id
-                                ? 'bg-emerald-900/40 text-emerald-300'
-                                : 'text-gray-300 hover:bg-dark-600'
-                            }`}
-                          >
+                  {/* Day selection */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">When?</label>
+                    <div className="flex flex-wrap gap-2">
+                      {quickDays.slice(0, 7).map(day => (
+                        <button
+                          key={day.value}
+                          type="button"
+                          onClick={() => setLtpDay(day.value)}
+                          className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                            ltpDay === day.value
+                              ? 'bg-emerald-600 text-white'
+                              : 'bg-dark-700 text-gray-400 hover:text-white hover:bg-dark-600 border border-dark-600'
+                          }`}
+                        >
+                          {day.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Time of day */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">What time?</label>
+                    <div className="flex gap-2">
+                      {([['morning', 'Morning'], ['afternoon', 'Afternoon'], ['anytime', 'Anytime']] as const).map(([val, label]) => (
+                        <button
+                          key={val}
+                          type="button"
+                          onClick={() => setLtpTime(val)}
+                          className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                            ltpTime === val
+                              ? 'bg-emerald-600 text-white'
+                              : 'bg-dark-700 text-gray-400 hover:text-white hover:bg-dark-600 border border-dark-600'
+                          }`}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Area */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1.5">What area?</label>
+                    <input
+                      type="text"
+                      value={ltpArea}
+                      onChange={e => setLtpArea(e.target.value)}
+                      placeholder="e.g. West Palm Beach, Jupiter, Boca..."
+                      required
+                      className="w-full bg-dark-700 border border-dark-600 text-gray-100 placeholder-gray-500 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none"
+                    />
+                  </div>
+
+                  {/* Group size */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1.5">Group size</label>
+                    <div className="flex gap-2">
+                      {[2, 3, 4].map(n => (
+                        <button
+                          key={n}
+                          type="button"
+                          onClick={() => setLtpPlayers(n)}
+                          className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                            ltpPlayers === n
+                              ? 'bg-emerald-600 text-white'
+                              : 'bg-dark-700 text-gray-400 hover:text-white hover:bg-dark-600 border border-dark-600'
+                          }`}
+                        >
+                          {n} players
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Notes */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1.5">
+                      Notes <span className="text-gray-500 font-normal">(optional)</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={ltpNotes}
+                      onChange={e => setLtpNotes(e.target.value)}
+                      placeholder="Casual round, any skill level welcome..."
+                      className="w-full bg-dark-700 border border-dark-600 text-gray-100 placeholder-gray-500 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none"
+                    />
+                  </div>
+
+                  <div className="flex gap-3 pt-2">
+                    <button type="button" onClick={() => setShowCreate(false)} className="flex-1 px-4 py-3 rounded-xl text-sm font-medium text-gray-400 bg-dark-700 hover:bg-dark-600 hover:text-white transition-colors">
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={submitting || !ltpDay || !ltpArea.trim()}
+                      className="flex-1 px-4 py-3 rounded-xl text-sm font-semibold bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                    >
+                      {submitting ? 'Posting...' : 'Post It'}
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              {/* Specific Tee Time Form */}
+              {createMode === 'specific' && (
+                <form onSubmit={handleSpecificSubmit} className="p-5 space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1.5">Title</label>
+                    <input type="text" value={formTitle} onChange={e => setFormTitle(e.target.value)} placeholder='"Looking for a 4th this Saturday"' required className="w-full bg-dark-700 border border-dark-600 text-gray-100 placeholder-gray-500 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1.5">Course</label>
+                    <input type="text" value={formClub} onChange={e => setFormClub(e.target.value)} placeholder="Search courses..." className="w-full bg-dark-700 border border-dark-600 text-gray-100 placeholder-gray-500 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none mb-2" />
+                    {formClub.trim() && (
+                      <div className="max-h-40 overflow-y-auto bg-dark-700 border border-dark-600 rounded-xl">
+                        {courses.filter(c => c.name.toLowerCase().includes(formClub.toLowerCase()) || c.parent_club?.toLowerCase().includes(formClub.toLowerCase())).slice(0, 6).map(course => (
+                          <button key={course.id} type="button" onClick={() => { setFormCourseId(course.id); setFormClub(course.parent_club ? `${course.parent_club} - ${course.name}` : course.name) }} className={`w-full text-left px-4 py-2.5 text-sm transition-colors border-b border-dark-600 last:border-b-0 ${formCourseId === course.id ? 'bg-emerald-900/40 text-emerald-300' : 'text-gray-300 hover:bg-dark-600'}`}>
                             <span className="font-medium">{course.name}</span>
-                            {course.parent_club && (
-                              <span className="text-gray-500 text-xs ml-2">{course.parent_club}</span>
-                            )}
-                            {course.city && (
-                              <span className="text-gray-500 text-xs ml-1">&middot; {course.city}, {course.state}</span>
-                            )}
+                            {course.parent_club && <span className="text-gray-500 text-xs ml-2">{course.parent_club}</span>}
+                            {course.city && <span className="text-gray-500 text-xs ml-1">&middot; {course.city}, {course.state}</span>}
                           </button>
                         ))}
-                    </div>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1.5">Tee Time</label>
-                  <input
-                    type="datetime-local"
-                    value={formDateTime}
-                    onChange={e => setFormDateTime(e.target.value)}
-                    required
-                    className="w-full bg-dark-700 border border-dark-600 text-gray-100 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1.5">Group Size</label>
-                  <div className="flex gap-2">
-                    {[2, 3, 4, 5, 6, 8].map(n => (
-                      <button
-                        key={n}
-                        type="button"
-                        onClick={() => setFormMaxPlayers(n)}
-                        className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition-colors ${
-                          formMaxPlayers === n
-                            ? 'bg-emerald-600 text-white'
-                            : 'bg-dark-700 text-gray-400 hover:text-white hover:bg-dark-600 border border-dark-600'
-                        }`}
-                      >
-                        {n}
-                      </button>
-                    ))}
+                      </div>
+                    )}
                   </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1.5">
-                    Notes <span className="text-gray-500 font-normal">(optional)</span>
-                  </label>
-                  <textarea
-                    value={formDescription}
-                    onChange={e => setFormDescription(e.target.value)}
-                    placeholder="Skill level, cart/walk, any details..."
-                    rows={2}
-                    className="w-full bg-dark-700 border border-dark-600 text-gray-100 placeholder-gray-500 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none resize-none"
-                  />
-                </div>
-
-                <div className="flex gap-3 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setShowCreate(false)}
-                    className="flex-1 px-4 py-3 rounded-xl text-sm font-medium text-gray-400 bg-dark-700 hover:bg-dark-600 hover:text-white transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={submitting || !formTitle.trim() || !formDateTime}
-                    className="flex-1 px-4 py-3 rounded-xl text-sm font-semibold bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                  >
-                    {submitting ? 'Posting...' : 'Post Tee Time'}
-                  </button>
-                </div>
-              </form>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1.5">Tee Time</label>
+                    <input type="datetime-local" value={formDateTime} onChange={e => setFormDateTime(e.target.value)} required className="w-full bg-dark-700 border border-dark-600 text-gray-100 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1.5">Group Size</label>
+                    <div className="flex gap-2">
+                      {[2, 3, 4, 5, 6, 8].map(n => (
+                        <button key={n} type="button" onClick={() => setFormMaxPlayers(n)} className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition-colors ${formMaxPlayers === n ? 'bg-emerald-600 text-white' : 'bg-dark-700 text-gray-400 hover:text-white hover:bg-dark-600 border border-dark-600'}`}>{n}</button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1.5">Notes <span className="text-gray-500 font-normal">(optional)</span></label>
+                    <textarea value={formDescription} onChange={e => setFormDescription(e.target.value)} placeholder="Skill level, cart/walk, any details..." rows={2} className="w-full bg-dark-700 border border-dark-600 text-gray-100 placeholder-gray-500 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none resize-none" />
+                  </div>
+                  <div className="flex gap-3 pt-2">
+                    <button type="button" onClick={() => setShowCreate(false)} className="flex-1 px-4 py-3 rounded-xl text-sm font-medium text-gray-400 bg-dark-700 hover:bg-dark-600 hover:text-white transition-colors">Cancel</button>
+                    <button type="submit" disabled={submitting || !formTitle.trim() || !formDateTime} className="flex-1 px-4 py-3 rounded-xl text-sm font-semibold bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">{submitting ? 'Posting...' : 'Post Tee Time'}</button>
+                  </div>
+                </form>
+              )}
             </div>
           </div>
         )}
 
-        {/* Tee Time Cards */}
+        {/* Cards */}
         {loading ? (
           <div className="space-y-4">
             {[1, 2, 3].map(i => (
               <div key={i} className="bg-dark-800 rounded-2xl border border-dark-700 p-5 animate-pulse">
                 <div className="flex items-center gap-3 mb-4">
                   <div className="w-10 h-10 rounded-full bg-dark-700" />
-                  <div className="space-y-2 flex-1">
-                    <div className="h-5 w-48 bg-dark-700 rounded" />
-                    <div className="h-3 w-24 bg-dark-700 rounded" />
-                  </div>
+                  <div className="space-y-2 flex-1"><div className="h-5 w-48 bg-dark-700 rounded" /><div className="h-3 w-24 bg-dark-700 rounded" /></div>
                 </div>
                 <div className="h-4 w-full bg-dark-700 rounded mb-2" />
                 <div className="h-2 w-full bg-dark-700 rounded-full" />
@@ -477,18 +580,18 @@ export default function TeeTimesPage() {
               {filter === 'my_times' && "You haven't joined any tee times yet"}
               {filter === 'past' && 'No past tee times'}
             </h3>
-            <p className="text-gray-400 text-sm max-w-sm mx-auto">
-              {filter === 'open' && 'Be the first to post one! Looking for a playing partner is as easy as posting your tee time.'}
+            <p className="text-gray-400 text-sm max-w-sm mx-auto mb-6">
+              {filter === 'open' && 'Be the first to post! Tell people when and where you want to play.'}
               {filter === 'my_times' && 'Browse open rounds and tap "I\'m In" to join one.'}
               {filter === 'past' && 'Past tee times will show up here.'}
             </p>
             {filter === 'open' && user && (
               <button
-                onClick={() => setShowCreate(true)}
-                className="mt-6 inline-flex items-center gap-2 bg-emerald-600 text-white px-5 py-2.5 rounded-xl font-medium text-sm hover:bg-emerald-700 transition-colors"
+                onClick={() => { setShowCreate(true); setCreateMode('looking') }}
+                className="inline-flex items-center gap-2 bg-emerald-600 text-white px-5 py-2.5 rounded-xl font-medium text-sm hover:bg-emerald-700 transition-colors"
               >
-                <Plus className="w-4 h-4" />
-                Post a Tee Time
+                <Hand className="w-4 h-4" />
+                I&apos;m Looking to Play
               </button>
             )}
           </div>
@@ -500,15 +603,30 @@ export default function TeeTimesPage() {
               const spotsLeft = meetup.max_players - attendeeCount
               const attending = isUserAttending(meetup)
               const isOrganizer = user?.id === meetup.organizer_id
-              const organizerHandicap = meetup.profiles?.handicap
+              const ltp = isLookingToPlay(meetup)
+              const area = getAreaFromDescription(meetup.description)
 
               return (
                 <div
                   key={meetup.id}
-                  className="bg-dark-800 rounded-2xl border border-dark-700 overflow-hidden hover:border-dark-600 transition-colors"
+                  className={`rounded-2xl border overflow-hidden hover:border-dark-600 transition-colors ${
+                    ltp
+                      ? 'bg-gradient-to-br from-dark-800 to-emerald-950/20 border-emerald-900/30'
+                      : 'bg-dark-800 border-dark-700'
+                  }`}
                 >
                   <div className="p-5">
-                    {/* Top row: organizer info + spots left */}
+                    {/* LTP badge */}
+                    {ltp && (
+                      <div className="flex items-center gap-2 mb-3">
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-900/50 text-emerald-400 border border-emerald-800/40">
+                          <Hand className="w-3 h-3" />
+                          Looking to Play
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Organizer row */}
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex items-center gap-3 flex-1 min-w-0">
                         <div className="w-10 h-10 rounded-full bg-emerald-900/50 flex items-center justify-center flex-shrink-0 overflow-hidden border-2 border-emerald-800/50">
@@ -526,10 +644,10 @@ export default function TeeTimesPage() {
                             {isOrganizer && <span className="ml-1.5 text-emerald-400 text-xs">(you)</span>}
                           </p>
                           <div className="flex items-center gap-2 text-xs text-gray-500">
-                            {organizerHandicap != null && (
+                            {meetup.profiles?.handicap != null && (
                               <span className="inline-flex items-center gap-1">
                                 <Award className="w-3 h-3" />
-                                {organizerHandicap} hdcp
+                                {meetup.profiles.handicap} hdcp
                               </span>
                             )}
                             {meetup.profiles?.location && (
@@ -542,22 +660,17 @@ export default function TeeTimesPage() {
                         </div>
                       </div>
 
-                      {/* Spots badge */}
                       {status === 'open' && (
                         <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-900/40 text-emerald-400 border border-emerald-800/50">
                           <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                          {spotsLeft} spot{spotsLeft !== 1 ? 's' : ''} open
+                          {spotsLeft} spot{spotsLeft !== 1 ? 's' : ''}
                         </span>
                       )}
                       {status === 'full' && (
-                        <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold bg-amber-900/40 text-amber-400 border border-amber-800/50">
-                          Full
-                        </span>
+                        <span className="px-3 py-1 rounded-full text-xs font-semibold bg-amber-900/40 text-amber-400 border border-amber-800/50">Full</span>
                       )}
                       {status === 'past' && (
-                        <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold bg-dark-700 text-gray-400 border border-dark-600">
-                          Played
-                        </span>
+                        <span className="px-3 py-1 rounded-full text-xs font-semibold bg-dark-700 text-gray-400 border border-dark-600">Played</span>
                       )}
                     </div>
 
@@ -566,13 +679,18 @@ export default function TeeTimesPage() {
 
                     {/* Details */}
                     <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-4 text-sm">
+                      {ltp && area && (
+                        <div className="flex items-center gap-1.5 text-emerald-300">
+                          <MapPin className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+                          <span className="font-medium">{area}</span>
+                        </div>
+                      )}
                       {meetup.courses && (
                         <div className="flex items-center gap-1.5 text-gray-300">
                           <MapPin className="w-4 h-4 text-emerald-400 flex-shrink-0" />
                           <span className="truncate">
                             {meetup.courses.parent_club ? `${meetup.courses.parent_club} - ` : ''}
                             {meetup.courses.name}
-                            {meetup.courses.city && <span className="text-gray-500"> &middot; {meetup.courses.city}, {meetup.courses.state}</span>}
                           </span>
                         </div>
                       )}
@@ -580,49 +698,54 @@ export default function TeeTimesPage() {
                         <Calendar className="w-4 h-4 text-emerald-400 flex-shrink-0" />
                         <span>{format(new Date(meetup.tee_time), 'EEE, MMM d')}</span>
                       </div>
-                      <div className="flex items-center gap-1.5 text-gray-300">
-                        <Clock className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-                        <span>{format(new Date(meetup.tee_time), 'h:mm a')}</span>
-                      </div>
+                      {!ltp && (
+                        <div className="flex items-center gap-1.5 text-gray-300">
+                          <Clock className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+                          <span>{format(new Date(meetup.tee_time), 'h:mm a')}</span>
+                        </div>
+                      )}
+                      {ltp && (
+                        <div className="flex items-center gap-1.5 text-gray-300">
+                          <Clock className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+                          <span>
+                            {new Date(meetup.tee_time).getHours() === 8 ? 'Morning' :
+                             new Date(meetup.tee_time).getHours() === 14 ? 'Afternoon' : 'Anytime'}
+                          </span>
+                        </div>
+                      )}
                     </div>
 
-                    {/* Who's in */}
+                    {/* Attendees */}
                     {attendeeCount > 0 && (
                       <div className="flex items-center gap-3 mb-4">
                         <div className="flex -space-x-2">
-                          {meetup.meetup_attendees?.slice(0, 5).map(attendee => (
-                            <div
-                              key={attendee.id}
-                              className="w-8 h-8 rounded-full border-2 border-dark-800 bg-dark-600 flex items-center justify-center overflow-hidden"
-                              title={`${attendee.profiles?.full_name || 'Player'}${attendee.profiles?.handicap != null ? ` (${attendee.profiles.handicap} hdcp)` : ''}`}
-                            >
-                              {attendee.profiles?.avatar_url ? (
-                                <img src={attendee.profiles.avatar_url} alt="" className="w-full h-full object-cover" />
+                          {meetup.meetup_attendees?.slice(0, 5).map(a => (
+                            <div key={a.id} className="w-8 h-8 rounded-full border-2 border-dark-800 bg-dark-600 flex items-center justify-center overflow-hidden" title={`${a.profiles?.full_name || 'Player'}${a.profiles?.handicap != null ? ` (${a.profiles.handicap} hdcp)` : ''}`}>
+                              {a.profiles?.avatar_url ? (
+                                <img src={a.profiles.avatar_url} alt="" className="w-full h-full object-cover" />
                               ) : (
-                                <span className="text-gray-300 text-xs font-medium">
-                                  {attendee.profiles?.full_name?.charAt(0)?.toUpperCase() || '?'}
-                                </span>
+                                <span className="text-gray-300 text-xs font-medium">{a.profiles?.full_name?.charAt(0)?.toUpperCase() || '?'}</span>
                               )}
                             </div>
                           ))}
                         </div>
                         <span className="text-xs text-gray-500">
-                          {meetup.meetup_attendees
-                            ?.slice(0, 2)
-                            .map(a => a.profiles?.full_name?.split(' ')[0])
-                            .join(', ')}
-                          {attendeeCount > 2 && ` +${attendeeCount - 2} more`}
+                          {meetup.meetup_attendees?.slice(0, 2).map(a => a.profiles?.full_name?.split(' ')[0]).join(', ')}
+                          {attendeeCount > 2 && ` +${attendeeCount - 2}`}
                         </span>
                         {!isPast(new Date(meetup.tee_time)) && (
-                          <span className="text-xs text-gray-600 ml-auto">
-                            {formatDistanceToNow(new Date(meetup.tee_time), { addSuffix: true })}
-                          </span>
+                          <span className="text-xs text-gray-600 ml-auto">{formatDistanceToNow(new Date(meetup.tee_time), { addSuffix: true })}</span>
                         )}
                       </div>
                     )}
 
+                    {/* Notes (excluding area line for LTP) */}
                     {meetup.description && (
-                      <p className="text-gray-500 text-sm mb-4 line-clamp-2">{meetup.description}</p>
+                      <p className="text-gray-500 text-sm mb-4 line-clamp-2">
+                        {ltp
+                          ? meetup.description.split('\n').filter(l => !l.startsWith('Area:') && !l.startsWith('Handicap:')).join(' ').trim() || null
+                          : meetup.description}
+                      </p>
                     )}
 
                     {/* Actions */}
@@ -630,48 +753,27 @@ export default function TeeTimesPage() {
                       {status !== 'past' && user && (
                         <>
                           {attending ? (
-                            <button
-                              onClick={() => handleLeave(meetup.id)}
-                              disabled={joining === meetup.id}
-                              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium bg-dark-700 text-gray-300 hover:bg-red-900/30 hover:text-red-400 border border-dark-600 hover:border-red-800/50 transition-colors disabled:opacity-50"
-                            >
-                              {joining === meetup.id ? (
-                                <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
-                              ) : (
-                                <X className="w-4 h-4" />
-                              )}
+                            <button onClick={() => handleLeave(meetup.id)} disabled={joining === meetup.id} className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium bg-dark-700 text-gray-300 hover:bg-red-900/30 hover:text-red-400 border border-dark-600 hover:border-red-800/50 transition-colors disabled:opacity-50">
+                              {joining === meetup.id ? <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" /> : <X className="w-4 h-4" />}
                               Leave
                             </button>
                           ) : status === 'open' ? (
-                            <button
-                              onClick={() => handleJoin(meetup.id)}
-                              disabled={joining === meetup.id}
-                              className="inline-flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-semibold bg-emerald-600 text-white hover:bg-emerald-700 transition-colors shadow-sm shadow-emerald-900/30 disabled:opacity-50"
-                            >
-                              {joining === meetup.id ? (
-                                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                              ) : (
-                                <Check className="w-4 h-4" />
-                              )}
+                            <button onClick={() => handleJoin(meetup.id)} disabled={joining === meetup.id} className="inline-flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-semibold bg-emerald-600 text-white hover:bg-emerald-700 transition-colors shadow-sm shadow-emerald-900/30 disabled:opacity-50">
+                              {joining === meetup.id ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <Check className="w-4 h-4" />}
                               I&apos;m In
                             </button>
                           ) : null}
                         </>
                       )}
-
                       {attending && (
                         <span className="inline-flex items-center gap-1 text-xs text-emerald-400 font-medium">
                           <Check className="w-3.5 h-3.5" />
                           You&apos;re in
                         </span>
                       )}
-
-                      <Link
-                        href={`/tee-times/${meetup.id}`}
-                        className="ml-auto inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm text-emerald-400 hover:text-emerald-300 hover:bg-emerald-900/30 font-medium transition-colors"
-                      >
+                      <Link href={`/tee-times/${meetup.id}`} className="ml-auto inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm text-emerald-400 hover:text-emerald-300 hover:bg-emerald-900/30 font-medium transition-colors">
                         <MessageCircle className="w-4 h-4" />
-                        Match Room
+                        Chat
                         <ArrowRight className="w-3.5 h-3.5" />
                       </Link>
                     </div>
