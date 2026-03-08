@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import type { Profile, Round, Post, Listing } from '@/lib/types';
+import type { Profile, Round, Post } from '@/lib/types';
 import {
   Camera,
   Edit2,
@@ -14,13 +14,12 @@ import {
   Trophy,
   Trash2,
   X,
-  Package,
   MessageSquare,
   Flag,
 } from 'lucide-react';
 import { useUser } from '@/hooks/use-user';
 
-type ProfileTab = 'rounds' | 'posts' | 'listings';
+type ProfileTab = 'rounds' | 'posts';
 
 interface ProfileForm {
   full_name: string;
@@ -45,8 +44,6 @@ export default function ProfilePage() {
   const [activeTab, setActiveTab] = useState<ProfileTab>('rounds');
   const [rounds, setRounds] = useState<Round[]>([]);
   const [posts, setPosts] = useState<Post[]>([]);
-  const [listings, setListings] = useState<Listing[]>([]);
-  const [connectionsCount, setConnectionsCount] = useState(0);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [formData, setFormData] = useState<ProfileForm>({
     full_name: '',
@@ -90,14 +87,6 @@ export default function ProfilePage() {
       });
     }
 
-    // Fetch connections count
-    const { count } = await supabase
-      .from('connections')
-      .select('*', { count: 'exact', head: true })
-      .eq('status', 'accepted')
-      .or(`requester_id.eq.${userId},addressee_id.eq.${userId}`);
-
-    setConnectionsCount(count ?? 0);
     setLoading(false);
   }, [supabase, userId]);
 
@@ -118,13 +107,6 @@ export default function ProfilePage() {
         .eq('user_id', userId)
         .order('created_at', { ascending: false });
       if (data) setPosts(data as Post[]);
-    } else if (activeTab === 'listings') {
-      const { data } = await supabase
-        .from('listings')
-        .select('*')
-        .eq('seller_id', userId)
-        .order('created_at', { ascending: false });
-      if (data) setListings(data as Listing[]);
     }
   }, [supabase, activeTab, userId]);
 
@@ -218,11 +200,6 @@ export default function ProfilePage() {
     if (!error) setPosts((prev) => prev.filter((p) => p.id !== postId));
   };
 
-  const handleDeleteListing = async (listingId: string) => {
-    const { error } = await supabase.from('listings').delete().eq('id', listingId);
-    if (!error) setListings((prev) => prev.filter((l) => l.id !== listingId));
-  };
-
   // Stats calculations
   const totalRounds = rounds.length;
   const averageScore =
@@ -237,7 +214,6 @@ export default function ProfilePage() {
   const tabs: { key: ProfileTab; label: string; count: number }[] = [
     { key: 'rounds', label: 'My Rounds', count: rounds.length },
     { key: 'posts', label: 'My Posts', count: posts.length },
-    { key: 'listings', label: 'My Listings', count: listings.length },
   ];
 
   if (loading) {
@@ -515,8 +491,10 @@ export default function ProfilePage() {
             <div className="text-sm text-gray-400 mt-0.5">Best Score</div>
           </div>
           <div className="bg-dark-700 rounded-xl shadow-sm border border-dark-700 p-4 text-center">
-            <div className="text-2xl font-bold text-emerald-600">{connectionsCount}</div>
-            <div className="text-sm text-gray-400 mt-0.5">Connections</div>
+            <div className="text-2xl font-bold text-emerald-600">
+              {profile.handicap != null ? profile.handicap : '--'}
+            </div>
+            <div className="text-sm text-gray-400 mt-0.5">Handicap</div>
           </div>
         </div>
 
@@ -534,7 +512,6 @@ export default function ProfilePage() {
             >
               {tab.key === 'rounds' && <Flag className="w-4 h-4" />}
               {tab.key === 'posts' && <MessageSquare className="w-4 h-4" />}
-              {tab.key === 'listings' && <Package className="w-4 h-4" />}
               {tab.label}
               {tab.count > 0 && (
                 <span
@@ -659,74 +636,6 @@ export default function ProfilePage() {
             </>
           )}
 
-          {/* My Listings */}
-          {activeTab === 'listings' && (
-            <>
-              {listings.length === 0 ? (
-                <div className="bg-dark-800 rounded-xl shadow-sm border border-dark-700 p-12 text-center">
-                  <Package className="w-12 h-12 text-gray-600 mx-auto mb-3" />
-                  <h3 className="text-lg font-semibold text-gray-400 mb-1">No listings</h3>
-                  <p className="text-gray-500 text-sm">
-                    List equipment for sale in the marketplace.
-                  </p>
-                </div>
-              ) : (
-                listings.map((listing) => (
-                  <div
-                    key={listing.id}
-                    className="bg-dark-800 rounded-xl shadow-sm border border-dark-700 p-4 flex items-center justify-between"
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className="w-16 h-16 rounded-lg bg-dark-700 overflow-hidden flex-shrink-0">
-                        {listing.image_urls && listing.image_urls.length > 0 ? (
-                          <img
-                            src={listing.image_urls[0]}
-                            alt={listing.title ?? 'Listing'}
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center">
-                            <Package className="w-6 h-6 text-gray-600" />
-                          </div>
-                        )}
-                      </div>
-                      <div>
-                        <h4 className="font-semibold text-white">{listing.title}</h4>
-                        <div className="flex items-center gap-3 text-sm text-gray-400 mt-0.5">
-                          <span className="font-medium text-emerald-600">
-                            ${listing.price?.toFixed(2)}
-                          </span>
-                          {listing.condition && (
-                            <span className="capitalize">
-                              {listing.condition.replace('_', ' ')}
-                            </span>
-                          )}
-                          <span
-                            className={`px-1.5 py-0.5 text-xs rounded-full font-medium ${
-                              listing.status === 'active'
-                                ? 'bg-emerald-900/30 text-emerald-400'
-                                : listing.status === 'sold'
-                                ? 'bg-dark-700 text-gray-400'
-                                : 'bg-amber-900/30 text-amber-400'
-                            }`}
-                          >
-                            {listing.status}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => handleDeleteListing(listing.id)}
-                      className="p-2 text-gray-500 hover:text-red-400 hover:bg-red-900/30 rounded-lg transition-colors"
-                      title="Delete listing"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                ))
-              )}
-            </>
-          )}
         </div>
       </div>
     </div>
