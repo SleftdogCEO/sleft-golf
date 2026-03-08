@@ -42,7 +42,7 @@ export default function ProposePage() {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
     {
       role: 'assistant',
-      content: "Hey! I'm your caddie for scheduling. Tell me when you're free and I'll set up the times. Something like \"any day except Wednesday\" or \"Saturday morning and Sunday after 2.\"",
+      content: "I'm your AI caddie. Tell me two things:\n\n1. When are you free? (e.g. \"Saturday morning\" or \"any day except Wednesday\")\n2. Where do you want to play? (e.g. \"near West Palm Beach\" or \"Ibis\")\n\nI'll set up the proposal and you can share it with your group.",
       times: [],
       title: null,
     },
@@ -215,7 +215,7 @@ export default function ProposePage() {
       <div className="max-w-lg mx-auto px-4 py-8">
         <h1 className="text-3xl font-bold text-white mb-2">Propose a Round</h1>
         <p className="text-gray-400 mb-6">
-          Chat with the AI caddie or fill in the form below. Everyone votes on what works.
+          Tell the AI caddie when you&apos;re free and where you want to play. It&apos;ll set up the proposal, then you share the link with your group so everyone can vote.
         </p>
 
         {/* AI Chat */}
@@ -224,7 +224,7 @@ export default function ProposePage() {
             <Bot className="w-5 h-5 text-emerald-400" />
             <h2 className="text-white font-semibold text-sm">AI Caddie</h2>
             <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-900/40 text-emerald-400 font-medium">
-              powered by Claude
+              AI-powered
             </span>
           </div>
 
@@ -318,7 +318,7 @@ export default function ProposePage() {
                 value={chatInput}
                 onChange={e => setChatInput(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleChatSend() } }}
-                placeholder="Tell me when you're free..."
+                placeholder="e.g. Saturday morning near West Palm Beach..."
                 disabled={chatLoading}
                 className="flex-1 bg-dark-700 border border-dark-600 text-gray-100 placeholder-gray-500 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none disabled:opacity-50"
               />
