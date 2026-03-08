@@ -67,10 +67,18 @@ export async function POST(req: NextRequest) {
       }
       return NextResponse.json({ message: text, times: [], title: null })
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error('Propose assist error:', error)
+    const errMsg = error?.error?.message || error?.message || 'Unknown error'
+    const isCredits = errMsg.includes('credit') || errMsg.includes('usage limit')
     return NextResponse.json(
-      { message: "Something went wrong. Try typing your availability manually below.", times: [], title: null },
+      {
+        message: isCredits
+          ? "API credits issue — the AI caddie is temporarily unavailable. Please fill in the form manually below."
+          : "Something went wrong. Try typing your availability manually below.",
+        times: [],
+        title: null,
+      },
       { status: 500 }
     )
   }
