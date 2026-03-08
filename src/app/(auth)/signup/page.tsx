@@ -44,7 +44,7 @@ function SignupForm() {
       return
     }
 
-    router.push(redirect)
+    window.location.href = redirect
   }
 
   return (

@@ -40,7 +40,7 @@ function LoginForm() {
       return
     }
 
-    router.push(redirect)
+    window.location.href = redirect
   }
 
   return (
