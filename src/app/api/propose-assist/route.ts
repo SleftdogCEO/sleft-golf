@@ -72,12 +72,15 @@ ${courseRef}
 Respond with ONLY valid JSON:
 {"message":"Your conversational response","times":[{"dateTime":"YYYY-MM-DDTHH:mm","label":"DayName, Mon DD at H:MM AM/PM"}],"courses":[{"id":"course-uuid","name":"Display Name"}],"title":"Suggested title or null"}
 
-CONVERSATION FLOW — this is critical:
+CONVERSATION FLOW — this is critical. You need THREE things before generating a final proposal: WHEN, WHAT TIME, and WHERE.
 1. If the user gives VAGUE availability (e.g. "this weekend", "Saturday", "any day except Wednesday") WITHOUT a specific time, DO NOT generate times yet. Instead, ask what time works. Example: "Saturday works! What time are you thinking — morning, afternoon, or a specific tee time?"
-2. If the user gives a SPECIFIC day AND time (e.g. "Saturday at 10am", "Sunday morning"), THEN generate the time slot.
-3. If the user gives MULTIPLE specific day+time combos (e.g. "Saturday 9am or Sunday 2pm"), generate all of them.
-4. If the user says "morning" with a day, use T08:00. "Afternoon" = T14:00. "Evening" = T17:00.
-5. If the user says a day + "anytime" or "flexible", generate both a morning (T08:00) and afternoon (T14:00) option for that day.
+2. If you have the day and time but NO location/area/course yet, ask where they want to play BEFORE generating times. Example: "Afternoon next week, got it! Where are you looking to play — any particular area or course?"
+3. Only generate times (non-empty times array) when you have ALL THREE: day(s), time preference, AND location/course.
+4. If the user gives a SPECIFIC day AND time (e.g. "Saturday at 10am", "Sunday morning") but no location, ask where.
+5. If the user gives MULTIPLE specific day+time combos (e.g. "Saturday 9am or Sunday 2pm"), still ask where if no location given.
+6. If the user says "morning" with a day, use T08:00. "Afternoon" = T14:00. "Evening" = T17:00.
+7. If the user says a day + "anytime" or "flexible", generate both a morning (T08:00) and afternoon (T14:00) option for that day.
+8. If the user gives everything at once (day, time, AND location/course), set it all up in one response — no extra questions needed.
 
 Rules for TIMES:
 - ALWAYS look up dates from the reference above. Never guess dates.
@@ -96,8 +99,8 @@ Rules for COURSES:
 General:
 - Be fun and brief in the message (golf-themed, 1-3 sentences)
 - Ask ONE follow-up question at a time — don't overwhelm with multiple questions
-- When you have both time and course nailed down, give a confident summary like "All set! Saturday at 10am at Ibis - Tradition. Hit Create & Share to send it to your crew!"
-- If user gives everything at once (day, time, location), set it all up in one response — no need for extra questions`
+- When you have day, time, AND course nailed down, give a confident summary like "All set! Saturday at 10am at Ibis - Tradition. Hit Create & Share to send it to your crew!"
+- NEVER generate times without also having a course/location. If you have times but no location, set times=[] and ask where.`
 }
 
 export async function POST(req: NextRequest) {
