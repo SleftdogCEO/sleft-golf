@@ -81,7 +81,7 @@ CONVERSATION FLOW — this is critical:
 
 Rules for TIMES:
 - ALWAYS look up dates from the reference above. Never guess dates.
-- EXCLUSIONS: If user says "except Wednesday", "but not Wednesday" etc. — EXCLUDE that day.
+- EXCLUSIONS: If user says "except Wednesday", "but not Wednesday", "except tuesday morning and wednesday night" etc. — EXCLUDE those entire days completely. Even if they only exclude a specific time on that day (like "wednesday night"), exclude ALL of Wednesday. When in doubt, exclude the day.
 - "Any day" / "every day" = all 7 upcoming days (but still ask about time if not given)
 - "Weekdays" = Mon-Fri only
 - times = [] when you're still asking questions and don't have enough info yet
@@ -122,17 +122,30 @@ export async function POST(req: NextRequest) {
     const parsed = JSON.parse(text)
     let times: { dateTime: string; label: string }[] = Array.isArray(parsed.times) ? parsed.times : []
 
-    // Server-side exclusion filter: if user mentioned excluding a day, remove it
-    const userText = messages[messages.length - 1]?.content?.toLowerCase() || ''
+    // Server-side exclusion filter: scan ALL user messages for excluded days
+    const allUserText = messages
+      .filter((m: { role: string }) => m.role === 'user')
+      .map((m: { content: string }) => m.content)
+      .join(' ')
+      .toLowerCase()
     const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
+
+    // Check if exclusion keywords appear anywhere in the conversation
+    const hasExclusionContext = /\b(except|but not|besides|excluding|not on|can'?t do|won'?t work|doesn'?t work|no good|off on|busy on|skip)\b/i.test(allUserText)
 
     for (const dayName of dayNames) {
       const shortName = dayName.slice(0, 3)
-      const hasExclusion =
-        new RegExp(`(?:except|but not|but|besides|excluding|not|can't do|cant do|won't work|wont work|doesn't work|doesnt work)\\s+(?:for\\s+)?(?:\\w+\\s+(?:and|or|,)\\s+)*${dayName}`, 'i').test(userText) ||
-        new RegExp(`(?:except|but not|but|besides|excluding|not|can't do|cant do|won't work|wont work|doesn't work|doesnt work)\\s+(?:for\\s+)?(?:\\w+\\s+(?:and|or|,)\\s+)*${shortName}\\b`, 'i').test(userText) ||
-        new RegExp(`${dayName}\\s+(?:won't|wont|doesn't|doesnt|can't|cant|will not|does not|cannot)\\s+work`, 'i').test(userText) ||
-        new RegExp(`${dayName}\\s+(?:is|are)\\s+(?:out|no good|not good|bad|off)`, 'i').test(userText)
+      let hasExclusion = false
+
+      if (hasExclusionContext) {
+        // If exclusion words are present, check if this day name appears near them
+        // Use a broad window — the day name just needs to be in the same exclusion phrase
+        hasExclusion =
+          new RegExp(`(?:except|but not|besides|excluding|not on|can'?t do|won'?t work|doesn'?t work|skip|busy)\\b[^.!?]*\\b${dayName}`, 'i').test(allUserText) ||
+          new RegExp(`(?:except|but not|besides|excluding|not on|can'?t do|won'?t work|doesn'?t work|skip|busy)\\b[^.!?]*\\b${shortName}\\b`, 'i').test(allUserText) ||
+          new RegExp(`\\b${dayName}\\b[^.!?]*(?:won'?t|doesn'?t|can'?t|will not|does not|cannot|is out|no good|not good|is off|is bad)`, 'i').test(allUserText) ||
+          new RegExp(`\\b${shortName}\\b[^.!?]*(?:won'?t|doesn'?t|can'?t|will not|does not|cannot|is out|no good|not good|is off|is bad)`, 'i').test(allUserText)
+      }
 
       if (hasExclusion) {
         const dayIndex = dayNames.indexOf(dayName)
