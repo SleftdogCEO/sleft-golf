@@ -213,7 +213,7 @@ export default function ProposalPage() {
       .eq('id', proposal.id)
 
     setConfirming(false)
-    router.push(`/meetups/${meetup.id}`)
+    router.push(`/tee-times/${meetup.id}`)
   }
 
   function shareLink() {
@@ -279,8 +279,8 @@ export default function ProposalPage() {
       <div className="min-h-screen bg-dark-950 flex items-center justify-center">
         <div className="text-center">
           <h2 className="text-xl font-bold text-white mb-2">Proposal not found</h2>
-          <Link href="/meetups" className="text-emerald-400 hover:text-emerald-300">
-            Back to meetups
+          <Link href="/tee-times" className="text-emerald-400 hover:text-emerald-300">
+            Back to tee times
           </Link>
         </div>
       </div>
@@ -299,7 +299,7 @@ export default function ProposalPage() {
             This proposal has been locked in. Head to the Match Room to coordinate.
           </p>
           <Link
-            href={`/meetups/${proposal.confirmed_meetup_id}`}
+            href={`/tee-times/${proposal.confirmed_meetup_id}`}
             className="inline-flex items-center gap-2 bg-emerald-600 text-white px-6 py-3 rounded-xl font-semibold hover:bg-emerald-700 transition-colors"
           >
             Go to Match Room
@@ -332,11 +332,11 @@ export default function ProposalPage() {
       <div className="max-w-lg mx-auto px-4 py-6">
 
         <Link
-          href="/meetups"
+          href="/tee-times"
           className="inline-flex items-center gap-2 text-gray-400 hover:text-white text-sm mb-6 transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />
-          Meetups
+          Tee Times
         </Link>
 
         {/* Header */}

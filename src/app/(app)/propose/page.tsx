@@ -43,7 +43,7 @@ export default function ProposePage() {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
     {
       role: 'assistant',
-      content: "Hey, I'm your AI caddie! When are you looking to play? Give me a day and time and I'll get things set up.",
+      content: "Hey, I'm your Sleft Caddie! Tell me when you want to play and what area you're looking to play in — I'll find the best courses and set everything up.",
       times: [],
       title: null,
     },
@@ -241,21 +241,21 @@ export default function ProposePage() {
       <div className="max-w-lg mx-auto px-4 py-8">
         <h1 className="text-3xl font-bold text-white mb-2">Propose a Round</h1>
         <p className="text-gray-400 mb-6">
-          Tell the AI caddie when you&apos;re free and where you want to play. It&apos;ll set up the proposal, then you share the link with your group so everyone can vote.
+          Tell the Sleft Caddie when you&apos;re free and where you want to play. It&apos;ll set up the proposal, then you share the link with your group so everyone can vote.
         </p>
 
         {/* AI Chat */}
         <div className="bg-dark-800 rounded-2xl border border-dark-700 mb-8 overflow-hidden">
           <div className="flex items-center gap-2 px-5 py-3 border-b border-dark-700 bg-dark-900/50">
             <Bot className="w-5 h-5 text-emerald-400" />
-            <h2 className="text-white font-semibold text-sm">AI Caddie</h2>
+            <h2 className="text-white font-semibold text-sm">Sleft Caddie</h2>
             <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-900/40 text-emerald-400 font-medium">
               AI-powered
             </span>
           </div>
 
           {/* Messages */}
-          <div ref={chatContainerRef} className="px-4 py-4 max-h-80 overflow-y-auto space-y-3">
+          <div ref={chatContainerRef} className="px-4 py-4 max-h-[500px] overflow-y-auto space-y-3">
             {chatMessages.map((msg, i) => (
               <div key={i} className={`flex gap-2.5 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
                 <div className={`w-7 h-7 rounded-full flex-shrink-0 flex items-center justify-center ${

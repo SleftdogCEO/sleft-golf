@@ -84,10 +84,10 @@ export function TodaysRounds() {
       </div>
 
       <Link
-        href="/meetups"
+        href="/tee-times"
         className="flex items-center justify-center gap-2 px-5 py-3 text-sm text-emerald-400 hover:text-emerald-300 hover:bg-dark-700 font-medium transition-colors border-t border-dark-700"
       >
-        View all meetups
+        View all tee times
         <ChevronRight className="w-4 h-4" />
       </Link>
     </div>
@@ -102,7 +102,7 @@ function MeetupRow({ meetup, label }: { meetup: TodayMeetup; label: string }) {
 
   return (
     <Link
-      href={`/meetups/${meetup.id}`}
+      href={`/tee-times/${meetup.id}`}
       className="flex items-center gap-4 px-5 py-4 hover:bg-dark-700/50 transition-colors group"
     >
       {/* Time block */}

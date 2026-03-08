@@ -290,7 +290,7 @@ export default function MeetupsPage() {
 
   const filterTabs: { key: Filter; label: string }[] = [
     { key: 'upcoming', label: 'Upcoming' },
-    { key: 'my_meetups', label: 'My Meetups' },
+    { key: 'my_meetups', label: 'My Tee Times' },
     { key: 'past', label: 'Past' },
   ]
 
@@ -300,7 +300,7 @@ export default function MeetupsPage() {
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-3xl font-bold text-white">Meetups</h1>
+            <h1 className="text-3xl font-bold text-white">Tee Times</h1>
             <p className="text-gray-400 mt-1">
               Find playing partners and organize group rounds.
             </p>
@@ -311,7 +311,7 @@ export default function MeetupsPage() {
               className="inline-flex items-center gap-2 bg-emerald-600 text-white px-4 py-2.5 rounded-xl font-medium text-sm hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-900/30"
             >
               <Plus className="w-4 h-4" />
-              New Meetup
+              New Tee Time
             </button>
           )}
         </div>
@@ -342,7 +342,7 @@ export default function MeetupsPage() {
             />
             <div className="relative bg-dark-800 rounded-2xl border border-dark-700 shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
               <div className="flex items-center justify-between p-5 border-b border-dark-700">
-                <h2 className="text-lg font-bold text-white">Organize a Meetup</h2>
+                <h2 className="text-lg font-bold text-white">Set Up a Tee Time</h2>
                 <button
                   onClick={() => setShowCreate(false)}
                   className="p-1.5 rounded-lg hover:bg-dark-700 text-gray-400 hover:text-white transition-colors"
@@ -567,7 +567,7 @@ export default function MeetupsPage() {
                     disabled={submitting || !formTitle.trim() || !formDateTime}
                     className="flex-1 px-4 py-3 rounded-xl text-sm font-semibold bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                   >
-                    {submitting ? 'Creating...' : 'Create Meetup'}
+                    {submitting ? 'Creating...' : 'Create Tee Time'}
                   </button>
                 </div>
               </form>
@@ -603,14 +603,14 @@ export default function MeetupsPage() {
               <Users className="w-8 h-8 text-emerald-400" />
             </div>
             <h3 className="text-lg font-semibold text-white mb-2">
-              {filter === 'upcoming' && 'No meetups planned yet'}
-              {filter === 'my_meetups' && "You haven't joined any meetups yet"}
-              {filter === 'past' && 'No past meetups'}
+              {filter === 'upcoming' && 'No tee times planned yet'}
+              {filter === 'my_meetups' && "You haven't joined any tee times yet"}
+              {filter === 'past' && 'No past tee times'}
             </h3>
             <p className="text-gray-400 text-sm max-w-sm mx-auto">
-              {filter === 'upcoming' && 'Be the first to organize one! Tap the button above to get a group together.'}
-              {filter === 'my_meetups' && 'Browse upcoming meetups and tap "I\'m In" to join one.'}
-              {filter === 'past' && 'Past meetups will appear here after their tee time.'}
+              {filter === 'upcoming' && 'Be the first to set one up! Tap the button above to get a group together.'}
+              {filter === 'my_meetups' && 'Browse upcoming tee times and tap "I\'m In" to join one.'}
+              {filter === 'past' && 'Past tee times will appear here after they\'ve been played.'}
             </p>
             {filter === 'upcoming' && user && (
               <button
@@ -618,7 +618,7 @@ export default function MeetupsPage() {
                 className="mt-6 inline-flex items-center gap-2 bg-emerald-600 text-white px-5 py-2.5 rounded-xl font-medium text-sm hover:bg-emerald-700 transition-colors"
               >
                 <Plus className="w-4 h-4" />
-                Organize a Meetup
+                Set Up a Tee Time
               </button>
             )}
           </div>
@@ -816,7 +816,7 @@ export default function MeetupsPage() {
                       )}
 
                       <Link
-                        href={`/meetups/${meetup.id}`}
+                        href={`/tee-times/${meetup.id}`}
                         className="ml-auto inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm text-emerald-400 hover:text-emerald-300 hover:bg-emerald-900/30 font-medium transition-colors"
                       >
                         <MessageCircle className="w-4 h-4" />
