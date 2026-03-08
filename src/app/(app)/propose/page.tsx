@@ -26,7 +26,7 @@ export default function ProposePage() {
   const supabase = createClient()
   const router = useRouter()
   const { userId, profile } = useUser()
-  const chatEndRef = useRef<HTMLDivElement>(null)
+  const chatContainerRef = useRef<HTMLDivElement>(null)
   const chatInputRef = useRef<HTMLInputElement>(null)
 
   const [title, setTitle] = useState('')
@@ -62,7 +62,8 @@ export default function ProposePage() {
   }, [])
 
   useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    const el = chatContainerRef.current
+    if (el) el.scrollTop = el.scrollHeight
   }, [chatMessages, chatLoading])
 
   function addTime() {
@@ -216,7 +217,7 @@ export default function ProposePage() {
           </div>
 
           {/* Messages */}
-          <div className="px-4 py-4 max-h-80 overflow-y-auto space-y-3">
+          <div ref={chatContainerRef} className="px-4 py-4 max-h-80 overflow-y-auto space-y-3">
             {chatMessages.map((msg, i) => (
               <div key={i} className={`flex gap-2.5 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
                 <div className={`w-7 h-7 rounded-full flex-shrink-0 flex items-center justify-center ${
@@ -278,7 +279,6 @@ export default function ProposePage() {
                 </div>
               </div>
             )}
-            <div ref={chatEndRef} />
           </div>
 
           {/* Chat Input */}
