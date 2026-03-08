@@ -37,6 +37,7 @@ export default function ProposePage() {
   const [allCourses, setAllCourses] = useState<CourseOption[]>([])
   const [selectedCourses, setSelectedCourses] = useState<{ id?: string; name: string }[]>([])
   const [submitting, setSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(null)
 
   // Chat state
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
@@ -160,7 +161,19 @@ export default function ProposePage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!userId || !title.trim() || times.filter(t => t).length === 0) return
+    setSubmitError(null)
+    if (!userId) {
+      setSubmitError('You must be logged in to create a proposal.')
+      return
+    }
+    if (!title.trim()) {
+      setSubmitError('Give your round a title.')
+      return
+    }
+    if (times.filter(t => t).length === 0) {
+      setSubmitError('Add at least one time option.')
+      return
+    }
 
     setSubmitting(true)
 
@@ -176,6 +189,7 @@ export default function ProposePage() {
 
     if (error || !proposal) {
       console.error('Error creating proposal:', error)
+      setSubmitError(`Failed to create proposal: ${error?.message || 'Unknown error'}`)
       setSubmitting(false)
       return
     }
@@ -464,9 +478,14 @@ export default function ProposePage() {
           </div>
 
           {/* Submit */}
+          {submitError && (
+            <div className="bg-red-900/30 border border-red-800/50 text-red-300 text-sm px-4 py-3 rounded-xl">
+              {submitError}
+            </div>
+          )}
           <button
             type="submit"
-            disabled={submitting || !title.trim() || times.filter(t => t).length === 0}
+            disabled={submitting}
             className="w-full inline-flex items-center justify-center gap-2 bg-emerald-600 text-white px-6 py-3.5 rounded-xl font-semibold text-base hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-lg shadow-emerald-900/30"
           >
             <Send className="w-5 h-5" />
