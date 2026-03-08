@@ -45,7 +45,7 @@ export default function Nav() {
 
   async function handleLogout() {
     await supabase.auth.signOut();
-    router.push("/login");
+    window.location.href = "/login";
   }
 
   return (
