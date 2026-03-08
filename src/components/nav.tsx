@@ -5,13 +5,10 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   Home,
-  Activity,
-  ShoppingBag,
   Users,
   User,
   Menu,
   X,
-  Trophy,
   Calendar,
   LogOut,
 } from "lucide-react";
@@ -20,13 +17,8 @@ import { createClient } from "@/lib/supabase/client";
 
 const navLinks = [
   { href: "/feed", label: "Feed", icon: Home },
-  { href: "/live", label: "Live", icon: Activity },
-  { href: "/marketplace", label: "Marketplace", icon: ShoppingBag },
-  { href: "/network", label: "Network", icon: Users },
-  { href: "/calendar", label: "Calendar", icon: Calendar },
   { href: "/tee-times", label: "Tee Times", icon: Users },
   { href: "/propose", label: "Propose", icon: Calendar },
-  { href: "/leaderboard", label: "Leaderboard", icon: Trophy },
   { href: "/profile", label: "Profile", icon: User },
 ];
 
