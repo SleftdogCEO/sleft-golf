@@ -19,6 +19,7 @@ type ChatMessage = {
   role: 'user' | 'assistant'
   content: string
   times?: { dateTime: string; label: string }[]
+  courses?: { id: string; name: string }[]
   title?: string | null
 }
 
@@ -117,6 +118,7 @@ export default function ProposePage() {
         role: 'assistant',
         content: data.message || "I'm having trouble understanding. Can you rephrase?",
         times: data.times || [],
+        courses: data.courses || [],
         title: data.title || null,
       }
 
@@ -126,6 +128,16 @@ export default function ProposePage() {
       if (data.times && data.times.length > 0) {
         setTimes(data.times.map((t: { dateTime: string }) => t.dateTime))
         setTimesApplied(true)
+      }
+      // Auto-apply courses if we got some
+      if (data.courses && data.courses.length > 0) {
+        setSelectedCourses(prev => {
+          const existingIds = new Set(prev.map(c => c.id))
+          const newCourses = data.courses
+            .filter((c: { id: string }) => !existingIds.has(c.id))
+            .map((c: { id: string; name: string }) => ({ id: c.id, name: c.name }))
+          return [...prev, ...newCourses]
+        })
       }
       if (data.title && !title.trim()) {
         setTitle(data.title)
@@ -259,6 +271,22 @@ export default function ProposePage() {
                           Applied to form
                         </span>
                       )}
+                    </div>
+                  )}
+
+                  {/* Show suggested courses */}
+                  {msg.role === 'assistant' && msg.courses && msg.courses.length > 0 && (
+                    <div className="mt-2 space-y-1">
+                      {msg.courses.map((c, j) => (
+                        <div key={j} className="inline-flex items-center gap-1.5 bg-dark-700 border border-dark-600 px-2.5 py-1 rounded-lg text-xs text-gray-300 mr-1">
+                          <MapPin className="w-3 h-3 text-emerald-400" />
+                          {c.name}
+                        </div>
+                      ))}
+                      <span className="inline-flex items-center gap-1 mt-1 px-2.5 py-1 rounded-lg text-xs font-medium text-emerald-400">
+                        <Check className="w-3 h-3" />
+                        Added to form
+                      </span>
                     </div>
                   )}
                 </div>
