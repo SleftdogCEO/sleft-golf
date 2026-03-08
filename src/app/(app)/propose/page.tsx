@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Plus, X, Calendar, MapPin, Send, Sparkles, Bot, User as UserIcon, Check } from 'lucide-react'
@@ -24,7 +24,7 @@ type ChatMessage = {
 }
 
 export default function ProposePage() {
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
   const router = useRouter()
   const { userId, profile } = useUser()
   const chatContainerRef = useRef<HTMLDivElement>(null)
@@ -177,19 +177,31 @@ export default function ProposePage() {
 
     setSubmitting(true)
 
-    const { data: proposal, error } = await supabase
-      .from('proposals')
-      .insert({
-        title: title.trim(),
-        organizer_id: userId,
-        message: message.trim() || null,
-      })
-      .select()
-      .single()
+    // Retry up to 2 times to handle transient auth lock errors
+    let proposal: any = null
+    let lastError: any = null
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const { data, error } = await supabase
+        .from('proposals')
+        .insert({
+          title: title.trim(),
+          organizer_id: userId,
+          message: message.trim() || null,
+        })
+        .select()
+        .single()
 
-    if (error || !proposal) {
-      console.error('Error creating proposal:', error)
-      setSubmitError(`Failed to create proposal: ${error?.message || 'Unknown error'}`)
+      if (!error && data) {
+        proposal = data
+        break
+      }
+      lastError = error
+      if (attempt < 2) await new Promise(r => setTimeout(r, 500))
+    }
+
+    if (!proposal) {
+      console.error('Error creating proposal:', lastError)
+      setSubmitError(`Failed to create proposal: ${lastError?.message || 'Unknown error'}`)
       setSubmitting(false)
       return
     }
