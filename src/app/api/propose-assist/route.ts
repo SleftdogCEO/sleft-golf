@@ -1,7 +1,7 @@
-import Anthropic from '@anthropic-ai/sdk'
+import OpenAI from 'openai'
 import { NextRequest, NextResponse } from 'next/server'
 
-const client = new Anthropic()
+const client = new OpenAI()
 
 const SYSTEM_PROMPT = `You are a golf scheduling assistant inside a "Propose a Round" feature. Users describe their availability and you extract structured data to fill out a proposal form.
 
@@ -10,75 +10,54 @@ Today's date is ${new Date().toLocaleDateString('en-US', { weekday: 'long', year
 Your job:
 1. Parse natural language availability into specific date/time slots
 2. Be conversational and fun (golf personality) but concise (1-2 sentences max)
-3. Return structured JSON alongside your message
+3. Return ONLY valid JSON, nothing else
 
-ALWAYS respond with valid JSON in this exact format:
-{
-  "message": "Your conversational response here",
-  "times": [
-    { "dateTime": "2026-03-15T08:00", "label": "Saturday, Mar 15 at 8:00 AM" }
-  ],
-  "title": "Optional suggested title for the round"
-}
+Respond with ONLY this JSON format, no other text:
+{"message":"Your conversational response","times":[{"dateTime":"2026-03-15T08:00","label":"Saturday, Mar 15 at 8:00 AM"}],"title":"Suggested title"}
 
 Rules for times:
-- Use format YYYY-MM-DDTHH:mm for dateTime
-- If user says "morning", use 8:00 AM
-- If user says "afternoon", use 2:00 PM
-- If user says "anytime" for a day, generate both morning (8:00 AM) and afternoon (2:00 PM)
-- If no time specified, default to 8:00 AM
-- "Any day except X" means generate all 7 days of the upcoming week minus X
-- "Weekdays" means Mon-Fri
-- Always use upcoming dates (never past dates)
-- Keep times array empty if the message is just conversation and doesn't contain availability info yet
+- dateTime format: YYYY-MM-DDTHH:mm
+- "morning" = 8:00 AM, "afternoon" = 2:00 PM
+- "anytime" for a day = one slot at 8:00 AM (keep it simple)
+- No time specified = default 8:00 AM
+- "Any day except X" = all 7 upcoming days minus X
+- "Weekdays" = Mon-Fri
+- Always use upcoming dates, never past
+- times = [] if no availability info given yet
+- title = null if no good suggestion
 
-If the user is chatting but hasn't given availability yet, set times to [] and ask them when they're free. Be brief and golf-themed.`
+Be brief and golf-themed in the message field.`
 
 export async function POST(req: NextRequest) {
   try {
     const { messages } = await req.json()
 
-    const response = await client.messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 512,
-      system: SYSTEM_PROMPT,
-      messages: messages.map((m: { role: string; content: string }) => ({
-        role: m.role as 'user' | 'assistant',
-        content: m.content,
-      })),
+    const response = await client.chat.completions.create({
+      model: 'gpt-4o-mini',
+      max_tokens: 1024,
+      response_format: { type: 'json_object' },
+      messages: [
+        { role: 'system', content: SYSTEM_PROMPT },
+        ...messages.map((m: { role: string; content: string }) => ({
+          role: m.role as 'user' | 'assistant',
+          content: m.content,
+        })),
+      ],
     })
 
-    const text = response.content[0].type === 'text' ? response.content[0].text : ''
+    const text = response.choices[0]?.message?.content || '{}'
+    const parsed = JSON.parse(text)
 
-    // Try to parse as JSON
-    try {
-      const parsed = JSON.parse(text)
-      return NextResponse.json(parsed)
-    } catch {
-      // If the model didn't return valid JSON, try to extract it
-      const jsonMatch = text.match(/\{[\s\S]*\}/)
-      if (jsonMatch) {
-        try {
-          const parsed = JSON.parse(jsonMatch[0])
-          return NextResponse.json(parsed)
-        } catch {
-          // Fall through
-        }
-      }
-      return NextResponse.json({ message: text, times: [], title: null })
-    }
+    return NextResponse.json({
+      message: parsed.message || "I'm having trouble understanding. Can you rephrase?",
+      times: Array.isArray(parsed.times) ? parsed.times : [],
+      title: parsed.title || null,
+    })
   } catch (error: any) {
-    console.error('Propose assist error:', error)
-    const errMsg = error?.error?.message || error?.message || 'Unknown error'
-    const isCredits = errMsg.includes('credit') || errMsg.includes('usage limit')
+    const errMsg = error?.message || 'Unknown error'
+    console.error('Propose assist error:', errMsg)
     return NextResponse.json(
-      {
-        message: isCredits
-          ? "API credits issue — the AI caddie is temporarily unavailable. Please fill in the form manually below."
-          : "Something went wrong. Try typing your availability manually below.",
-        times: [],
-        title: null,
-      },
+      { message: "Something went wrong. Try filling in the form manually below.", times: [], title: null },
       { status: 500 }
     )
   }
