@@ -43,7 +43,7 @@ export default function ProposePage() {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
     {
       role: 'assistant',
-      content: "I'm your AI caddie. Tell me two things:\n\n1. When are you free? (e.g. \"Saturday morning\" or \"any day except Wednesday\")\n2. Where do you want to play? (e.g. \"near West Palm Beach\" or \"Ibis\")\n\nI'll set up the proposal and you can share it with your group.",
+      content: "Hey, I'm your AI caddie! When are you looking to play? Give me a day and time and I'll get things set up.",
       times: [],
       title: null,
     },
