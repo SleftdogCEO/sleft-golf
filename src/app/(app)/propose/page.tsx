@@ -238,33 +238,34 @@ export default function ProposePage() {
 
   return (
     <div className="min-h-screen bg-dark-950">
-      <div className="max-w-lg mx-auto px-4 py-8">
-        <h1 className="text-3xl font-bold text-white mb-2">Propose a Round</h1>
-        <p className="text-gray-400 mb-6">
-          Tell the Sleft Caddie when you&apos;re free and where you want to play. It&apos;ll set up the proposal, then you share the link with your group so everyone can vote.
-        </p>
+      <div className="max-w-2xl mx-auto px-4 py-8">
 
-        {/* AI Chat */}
-        <div className="bg-dark-800 rounded-2xl border border-dark-700 mb-8 overflow-hidden">
-          <div className="flex items-center gap-2 px-5 py-3 border-b border-dark-700 bg-dark-900/50">
-            <Bot className="w-5 h-5 text-emerald-400" />
-            <h2 className="text-white font-semibold text-sm">Sleft Caddie</h2>
-            <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-900/40 text-emerald-400 font-medium">
+        {/* Sleft Caddie — Hero */}
+        <div className="bg-gradient-to-br from-dark-800 to-emerald-950/20 rounded-2xl border border-emerald-900/30 mb-8 overflow-hidden shadow-xl shadow-emerald-900/10">
+          <div className="flex items-center gap-3 px-6 py-4 border-b border-dark-700 bg-dark-900/60">
+            <div className="w-10 h-10 rounded-full bg-emerald-600 flex items-center justify-center">
+              <Bot className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <h1 className="text-white font-bold text-lg">Sleft Caddie</h1>
+              <p className="text-emerald-400 text-xs font-medium">Tell me when and where — I&apos;ll set up the round</p>
+            </div>
+            <span className="ml-auto text-[10px] px-2.5 py-1 rounded-full bg-emerald-900/40 text-emerald-400 font-semibold border border-emerald-800/30">
               AI-powered
             </span>
           </div>
 
           {/* Messages */}
-          <div ref={chatContainerRef} className="px-4 py-4 max-h-[500px] overflow-y-auto space-y-3">
+          <div ref={chatContainerRef} className="px-5 py-5 min-h-[400px] max-h-[600px] overflow-y-auto space-y-4">
             {chatMessages.map((msg, i) => (
               <div key={i} className={`flex gap-2.5 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
-                <div className={`w-7 h-7 rounded-full flex-shrink-0 flex items-center justify-center ${
+                <div className={`w-9 h-9 rounded-full flex-shrink-0 flex items-center justify-center ${
                   msg.role === 'assistant' ? 'bg-emerald-900/50 text-emerald-400' : 'bg-dark-600 text-gray-300'
                 }`}>
-                  {msg.role === 'assistant' ? <Bot className="w-4 h-4" /> : <UserIcon className="w-4 h-4" />}
+                  {msg.role === 'assistant' ? <Bot className="w-5 h-5" /> : <UserIcon className="w-5 h-5" />}
                 </div>
-                <div className={`max-w-[80%] ${msg.role === 'user' ? 'text-right' : ''}`}>
-                  <div className={`inline-block px-3.5 py-2.5 rounded-2xl text-sm leading-relaxed ${
+                <div className={`max-w-[85%] ${msg.role === 'user' ? 'text-right' : ''}`}>
+                  <div className={`inline-block px-4 py-3 rounded-2xl text-base leading-relaxed ${
                     msg.role === 'assistant'
                       ? 'bg-dark-700 text-gray-200 rounded-tl-md'
                       : 'bg-emerald-600 text-white rounded-tr-md'
@@ -321,14 +322,14 @@ export default function ProposePage() {
 
             {chatLoading && (
               <div className="flex gap-2.5">
-                <div className="w-7 h-7 rounded-full flex-shrink-0 flex items-center justify-center bg-emerald-900/50 text-emerald-400">
-                  <Bot className="w-4 h-4" />
+                <div className="w-9 h-9 rounded-full flex-shrink-0 flex items-center justify-center bg-emerald-900/50 text-emerald-400">
+                  <Bot className="w-5 h-5" />
                 </div>
-                <div className="bg-dark-700 px-4 py-3 rounded-2xl rounded-tl-md">
-                  <div className="flex gap-1">
-                    <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                    <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                    <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                <div className="bg-dark-700 px-5 py-4 rounded-2xl rounded-tl-md">
+                  <div className="flex gap-1.5">
+                    <div className="w-2.5 h-2.5 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                    <div className="w-2.5 h-2.5 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                    <div className="w-2.5 h-2.5 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
                   </div>
                 </div>
               </div>
@@ -336,8 +337,8 @@ export default function ProposePage() {
           </div>
 
           {/* Chat Input */}
-          <div className="px-4 py-3 border-t border-dark-700 bg-dark-900/30">
-            <div className="flex gap-2">
+          <div className="px-5 py-4 border-t border-dark-700 bg-dark-900/40">
+            <div className="flex gap-3">
               <input
                 ref={chatInputRef}
                 type="text"
@@ -346,15 +347,15 @@ export default function ProposePage() {
                 onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleChatSend() } }}
                 placeholder="e.g. Saturday morning near West Palm Beach..."
                 disabled={chatLoading}
-                className="flex-1 bg-dark-700 border border-dark-600 text-gray-100 placeholder-gray-500 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none disabled:opacity-50"
+                className="flex-1 bg-dark-700 border border-dark-600 text-gray-100 placeholder-gray-500 rounded-xl px-5 py-3.5 text-base focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none disabled:opacity-50"
               />
               <button
                 type="button"
                 onClick={handleChatSend}
                 disabled={!chatInput.trim() || chatLoading}
-                className="p-2.5 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                className="px-4 py-3.5 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
-                <Send className="w-4 h-4" />
+                <Send className="w-5 h-5" />
               </button>
             </div>
           </div>

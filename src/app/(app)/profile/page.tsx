@@ -85,6 +85,37 @@ export default function ProfilePage() {
         company: p.company ?? '',
         linkedin_url: p.linkedin_url ?? '',
       });
+    } else {
+      // Profile doesn't exist yet — create one
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      if (authUser) {
+        const newProfile = {
+          id: authUser.id,
+          full_name: authUser.user_metadata?.full_name || 'Golfer',
+          username: authUser.email?.split('@')[0] || 'golfer',
+          email: authUser.email,
+        };
+        const { data: created } = await supabase
+          .from('profiles')
+          .upsert(newProfile, { onConflict: 'id' })
+          .select()
+          .single();
+        if (created) {
+          const p = created as Profile;
+          setProfile(p);
+          setFormData({
+            full_name: p.full_name ?? '',
+            username: p.username ?? '',
+            bio: p.bio ?? '',
+            handicap: p.handicap != null ? String(p.handicap) : '',
+            home_course: p.home_course ?? '',
+            location: p.location ?? '',
+            occupation: p.occupation ?? '',
+            company: p.company ?? '',
+            linkedin_url: p.linkedin_url ?? '',
+          });
+        }
+      }
     }
 
     setLoading(false);
