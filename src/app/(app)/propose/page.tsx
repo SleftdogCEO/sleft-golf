@@ -139,8 +139,8 @@ export default function ProposePage() {
           return [...prev, ...newCourses]
         })
       }
-      if (data.title && !title.trim()) {
-        setTitle(data.title)
+      if (!title.trim()) {
+        setTitle(data.title || 'Golf this week')
       }
     } catch {
       setChatMessages(prev => [
