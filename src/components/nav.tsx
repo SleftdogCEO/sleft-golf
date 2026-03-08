@@ -44,7 +44,17 @@ export default function Nav() {
   };
 
   async function handleLogout() {
+    // Server-side logout to clear httpOnly cookies
+    await fetch('/api/auth/logout', { method: 'POST' });
+    // Client-side signout
     await supabase.auth.signOut();
+    // Clear any remaining supabase cookies
+    document.cookie.split(';').forEach(c => {
+      const name = c.trim().split('=')[0];
+      if (name.startsWith('sb-')) {
+        document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/`;
+      }
+    });
     window.location.href = "/login";
   }
 
