@@ -174,3 +174,15 @@ export type Meetup = {
   courses?: Course
   meetup_attendees?: MeetupAttendee[]
 }
+
+export type AvailabilityStatus = 'open' | 'closed'
+
+export type Availability = {
+  id: string
+  user_id: string
+  date: string
+  status: AvailabilityStatus
+  note: string | null
+  created_at: string
+  profiles?: Profile
+}

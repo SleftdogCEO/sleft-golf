@@ -10,6 +10,7 @@ import {
   Menu,
   X,
   Calendar,
+  CalendarDays,
   LogOut,
 } from "lucide-react";
 import { useUser } from "@/hooks/use-user";
@@ -17,6 +18,7 @@ import { createClient } from "@/lib/supabase/client";
 
 const navLinks = [
   { href: "/feed", label: "Feed", icon: Home },
+  { href: "/calendar", label: "Calendar", icon: CalendarDays },
   { href: "/tee-times", label: "Tee Times", icon: Users },
   { href: "/propose", label: "Propose", icon: Calendar },
   { href: "/profile", label: "Profile", icon: User },
