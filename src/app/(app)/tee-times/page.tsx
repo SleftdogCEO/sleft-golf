@@ -309,9 +309,9 @@ export default function TeeTimesPage() {
   })
 
   const filterTabs: { key: Filter; label: string }[] = [
-    { key: 'open', label: 'Open Rounds' },
-    { key: 'my_times', label: 'My Tee Times' },
-    { key: 'past', label: 'Past' },
+    { key: 'open', label: "Who's Playing" },
+    { key: 'my_times', label: 'My Rounds' },
+    { key: 'past', label: 'In the Books' },
   ]
 
   const quickDays = getQuickDays()
@@ -321,19 +321,19 @@ export default function TeeTimesPage() {
       <div className="max-w-3xl mx-auto px-4 py-8">
         {/* Header */}
         <div className="flex items-center justify-between mb-2">
-          <h1 className="text-3xl font-bold text-white">Tee Times</h1>
+          <h1 className="text-3xl font-bold text-white">The Board</h1>
           {user && (
             <button
               onClick={() => { setShowCreate(true); setCreateMode('looking') }}
               className="inline-flex items-center gap-2 bg-emerald-600 text-white px-4 py-2.5 rounded-xl font-medium text-sm hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-900/30"
             >
               <Hand className="w-4 h-4" />
-              Looking to Play
+              I&apos;m Down to Play
             </button>
           )}
         </div>
         <p className="text-gray-400 mb-6">
-          Post your availability and find golfers near you to play with.
+          See who&apos;s playing, jump in on a round, or post up your own.
         </p>
 
         {/* Search */}
@@ -343,7 +343,7 @@ export default function TeeTimesPage() {
             type="text"
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
-            placeholder="Search by area, course, or player..."
+            placeholder="Find a game..."
             className="w-full bg-dark-800 border border-dark-700 text-gray-100 placeholder-gray-500 rounded-xl pl-11 pr-4 py-3 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none"
           />
         </div>
@@ -381,7 +381,7 @@ export default function TeeTimesPage() {
                   }`}
                 >
                   <Hand className="w-4 h-4 inline mr-2" />
-                  Looking to Play
+                  I&apos;m Down
                 </button>
                 <button
                   onClick={() => setCreateMode('specific')}
@@ -392,7 +392,7 @@ export default function TeeTimesPage() {
                   }`}
                 >
                   <Calendar className="w-4 h-4 inline mr-2" />
-                  Specific Tee Time
+                  Got a Tee Time
                 </button>
               </div>
 
@@ -400,12 +400,12 @@ export default function TeeTimesPage() {
               {createMode === 'looking' && (
                 <form onSubmit={handleLtpSubmit} className="p-5 space-y-4">
                   <p className="text-gray-400 text-sm">
-                    Post your availability and area. Other golfers nearby can tap &quot;I&apos;m In&quot; to join up.
+                    Drop your day and area. Golfers nearby will see it and jump in.
                   </p>
 
                   {/* Day selection */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">When?</label>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">When you trying to play?</label>
                     <div className="flex flex-wrap gap-2">
                       {quickDays.slice(0, 7).map(day => (
                         <button
@@ -426,7 +426,7 @@ export default function TeeTimesPage() {
 
                   {/* Time of day */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">What time?</label>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">What time works?</label>
                     <div className="flex gap-2">
                       {([['morning', 'Morning'], ['afternoon', 'Afternoon'], ['anytime', 'Anytime']] as const).map(([val, label]) => (
                         <button
@@ -447,7 +447,7 @@ export default function TeeTimesPage() {
 
                   {/* Area */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1.5">What area?</label>
+                    <label className="block text-sm font-medium text-gray-300 mb-1.5">Where at?</label>
                     <input
                       type="text"
                       value={ltpArea}
@@ -460,7 +460,7 @@ export default function TeeTimesPage() {
 
                   {/* Group size */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1.5">Group size</label>
+                    <label className="block text-sm font-medium text-gray-300 mb-1.5">How many deep?</label>
                     <div className="flex gap-2">
                       {[2, 3, 4].map(n => (
                         <button
@@ -482,13 +482,13 @@ export default function TeeTimesPage() {
                   {/* Notes */}
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-1.5">
-                      Notes <span className="text-gray-500 font-normal">(optional)</span>
+                      Anything else? <span className="text-gray-500 font-normal">(optional)</span>
                     </label>
                     <input
                       type="text"
                       value={ltpNotes}
                       onChange={e => setLtpNotes(e.target.value)}
-                      placeholder="Casual round, any skill level welcome..."
+                      placeholder="Walking, riding, skill level, vibes..."
                       className="w-full bg-dark-700 border border-dark-600 text-gray-100 placeholder-gray-500 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none"
                     />
                   </div>
@@ -502,7 +502,7 @@ export default function TeeTimesPage() {
                       disabled={submitting || !ltpDay || !ltpArea.trim()}
                       className="flex-1 px-4 py-3 rounded-xl text-sm font-semibold bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                     >
-                      {submitting ? 'Posting...' : 'Post It'}
+                      {submitting ? 'Dropping...' : 'Drop It'}
                     </button>
                   </div>
                 </form>
@@ -512,11 +512,11 @@ export default function TeeTimesPage() {
               {createMode === 'specific' && (
                 <form onSubmit={handleSpecificSubmit} className="p-5 space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1.5">Title</label>
-                    <input type="text" value={formTitle} onChange={e => setFormTitle(e.target.value)} placeholder='"Looking for a 4th this Saturday"' required className="w-full bg-dark-700 border border-dark-600 text-gray-100 placeholder-gray-500 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none" />
+                    <label className="block text-sm font-medium text-gray-300 mb-1.5">What&apos;s the move?</label>
+                    <input type="text" value={formTitle} onChange={e => setFormTitle(e.target.value)} placeholder="Need a 3rd for Saturday at Ibis" required className="w-full bg-dark-700 border border-dark-600 text-gray-100 placeholder-gray-500 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none" />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1.5">Course</label>
+                    <label className="block text-sm font-medium text-gray-300 mb-1.5">Where?</label>
                     <input type="text" value={formClub} onChange={e => setFormClub(e.target.value)} placeholder="Search courses..." className="w-full bg-dark-700 border border-dark-600 text-gray-100 placeholder-gray-500 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none mb-2" />
                     {formClub.trim() && (
                       <div className="max-h-40 overflow-y-auto bg-dark-700 border border-dark-600 rounded-xl">
@@ -531,11 +531,11 @@ export default function TeeTimesPage() {
                     )}
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1.5">Tee Time</label>
+                    <label className="block text-sm font-medium text-gray-300 mb-1.5">When?</label>
                     <input type="datetime-local" value={formDateTime} onChange={e => setFormDateTime(e.target.value)} required className="w-full bg-dark-700 border border-dark-600 text-gray-100 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none" />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1.5">Group Size</label>
+                    <label className="block text-sm font-medium text-gray-300 mb-1.5">How many?</label>
                     <div className="flex gap-2">
                       {[2, 3, 4, 5, 6, 8].map(n => (
                         <button key={n} type="button" onClick={() => setFormMaxPlayers(n)} className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition-colors ${formMaxPlayers === n ? 'bg-emerald-600 text-white' : 'bg-dark-700 text-gray-400 hover:text-white hover:bg-dark-600 border border-dark-600'}`}>{n}</button>
@@ -543,12 +543,12 @@ export default function TeeTimesPage() {
                     </div>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1.5">Notes <span className="text-gray-500 font-normal">(optional)</span></label>
-                    <textarea value={formDescription} onChange={e => setFormDescription(e.target.value)} placeholder="Skill level, cart/walk, any details..." rows={2} className="w-full bg-dark-700 border border-dark-600 text-gray-100 placeholder-gray-500 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none resize-none" />
+                    <label className="block text-sm font-medium text-gray-300 mb-1.5">Details <span className="text-gray-500 font-normal">(optional)</span></label>
+                    <textarea value={formDescription} onChange={e => setFormDescription(e.target.value)} placeholder="Cart or walk, vibe check, whatever..." rows={2} className="w-full bg-dark-700 border border-dark-600 text-gray-100 placeholder-gray-500 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none resize-none" />
                   </div>
                   <div className="flex gap-3 pt-2">
                     <button type="button" onClick={() => setShowCreate(false)} className="flex-1 px-4 py-3 rounded-xl text-sm font-medium text-gray-400 bg-dark-700 hover:bg-dark-600 hover:text-white transition-colors">Cancel</button>
-                    <button type="submit" disabled={submitting || !formTitle.trim() || !formDateTime} className="flex-1 px-4 py-3 rounded-xl text-sm font-semibold bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">{submitting ? 'Posting...' : 'Post Tee Time'}</button>
+                    <button type="submit" disabled={submitting || !formTitle.trim() || !formDateTime} className="flex-1 px-4 py-3 rounded-xl text-sm font-semibold bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">{submitting ? 'Locking in...' : 'Lock It In'}</button>
                   </div>
                 </form>
               )}
@@ -576,14 +576,14 @@ export default function TeeTimesPage() {
               <Users className="w-8 h-8 text-emerald-400" />
             </div>
             <h3 className="text-lg font-semibold text-white mb-2">
-              {filter === 'open' && 'No open rounds right now'}
-              {filter === 'my_times' && "You haven't joined any tee times yet"}
-              {filter === 'past' && 'No past tee times'}
+              {filter === 'open' && "The board's empty"}
+              {filter === 'my_times' && "You haven't jumped in yet"}
+              {filter === 'past' && 'Nothing in the books yet'}
             </h3>
             <p className="text-gray-400 text-sm max-w-sm mx-auto mb-6">
-              {filter === 'open' && 'Be the first to post! Tell people when and where you want to play.'}
-              {filter === 'my_times' && 'Browse open rounds and tap "I\'m In" to join one.'}
-              {filter === 'past' && 'Past tee times will show up here.'}
+              {filter === 'open' && "Drop your availability and let the crew know you're ready to roll."}
+              {filter === 'my_times' && "Check who's playing and hop in on a round."}
+              {filter === 'past' && 'Your rounds will show up here after you play.'}
             </p>
             {filter === 'open' && user && (
               <button
@@ -591,7 +591,7 @@ export default function TeeTimesPage() {
                 className="inline-flex items-center gap-2 bg-emerald-600 text-white px-5 py-2.5 rounded-xl font-medium text-sm hover:bg-emerald-700 transition-colors"
               >
                 <Hand className="w-4 h-4" />
-                I&apos;m Looking to Play
+                I&apos;m Down to Play
               </button>
             )}
           </div>
@@ -621,7 +621,7 @@ export default function TeeTimesPage() {
                       <div className="flex items-center gap-2 mb-3">
                         <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-900/50 text-emerald-400 border border-emerald-800/40">
                           <Hand className="w-3 h-3" />
-                          Looking to Play
+                          Down to Play
                         </span>
                       </div>
                     )}
@@ -667,10 +667,10 @@ export default function TeeTimesPage() {
                         </span>
                       )}
                       {status === 'full' && (
-                        <span className="px-3 py-1 rounded-full text-xs font-semibold bg-amber-900/40 text-amber-400 border border-amber-800/50">Full</span>
+                        <span className="px-3 py-1 rounded-full text-xs font-semibold bg-amber-900/40 text-amber-400 border border-amber-800/50">Squad&apos;s Full</span>
                       )}
                       {status === 'past' && (
-                        <span className="px-3 py-1 rounded-full text-xs font-semibold bg-dark-700 text-gray-400 border border-dark-600">Played</span>
+                        <span className="px-3 py-1 rounded-full text-xs font-semibold bg-dark-700 text-gray-400 border border-dark-600">In the Books</span>
                       )}
                     </div>
 
@@ -755,7 +755,7 @@ export default function TeeTimesPage() {
                           {attending ? (
                             <button onClick={() => handleLeave(meetup.id)} disabled={joining === meetup.id} className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium bg-dark-700 text-gray-300 hover:bg-red-900/30 hover:text-red-400 border border-dark-600 hover:border-red-800/50 transition-colors disabled:opacity-50">
                               {joining === meetup.id ? <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" /> : <X className="w-4 h-4" />}
-                              Leave
+                              Bail
                             </button>
                           ) : status === 'open' ? (
                             <button onClick={() => handleJoin(meetup.id)} disabled={joining === meetup.id} className="inline-flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-semibold bg-emerald-600 text-white hover:bg-emerald-700 transition-colors shadow-sm shadow-emerald-900/30 disabled:opacity-50">
@@ -768,12 +768,12 @@ export default function TeeTimesPage() {
                       {attending && (
                         <span className="inline-flex items-center gap-1 text-xs text-emerald-400 font-medium">
                           <Check className="w-3.5 h-3.5" />
-                          You&apos;re in
+                          You&apos;re locked in
                         </span>
                       )}
                       <Link href={`/tee-times/${meetup.id}`} className="ml-auto inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm text-emerald-400 hover:text-emerald-300 hover:bg-emerald-900/30 font-medium transition-colors">
                         <MessageCircle className="w-4 h-4" />
-                        Chat
+                        Group Chat
                         <ArrowRight className="w-3.5 h-3.5" />
                       </Link>
                     </div>

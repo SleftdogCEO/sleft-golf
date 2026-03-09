@@ -19,8 +19,8 @@ import { createClient } from "@/lib/supabase/client";
 const navLinks = [
   { href: "/feed", label: "Feed", icon: Home },
   { href: "/calendar", label: "Calendar", icon: CalendarDays },
-  { href: "/tee-times", label: "Tee Times", icon: Users },
-  { href: "/propose", label: "Propose", icon: Calendar },
+  { href: "/tee-times", label: "The Board", icon: Users },
+  { href: "/propose", label: "Caddie", icon: Calendar },
   { href: "/profile", label: "Profile", icon: User },
 ];
 
