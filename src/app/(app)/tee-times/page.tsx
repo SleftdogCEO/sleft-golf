@@ -107,6 +107,13 @@ export default function TeeTimesPage() {
   const [formMaxPlayers, setFormMaxPlayers] = useState(4)
   const [formDescription, setFormDescription] = useState('')
 
+  // Add Course form
+  const [showAddCourse, setShowAddCourse] = useState(false)
+  const [newCourseName, setNewCourseName] = useState('')
+  const [newCourseClub, setNewCourseClub] = useState('')
+  const [newCourseCity, setNewCourseCity] = useState('')
+  const [addingCourse, setAddingCourse] = useState(false)
+
   useEffect(() => {
     fetchMeetups()
     fetchCourses()
@@ -142,6 +149,35 @@ export default function TeeTimesPage() {
       .select('id, name, city, state, parent_club')
       .order('name', { ascending: true })
     if (data) setCourses(data)
+  }
+
+  async function handleAddCourse() {
+    if (!newCourseName.trim() || !newCourseCity.trim()) return
+    setAddingCourse(true)
+
+    const { data, error } = await supabase
+      .from('courses')
+      .insert({
+        name: newCourseName.trim(),
+        parent_club: newCourseClub.trim() || null,
+        city: newCourseCity.trim(),
+        state: 'FL',
+        holes: 18,
+        par: 72,
+      })
+      .select('id, name, city, state, parent_club')
+      .single()
+
+    if (data && !error) {
+      setCourses(prev => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)))
+      setFormCourseId(data.id)
+      setFormClub(data.parent_club ? `${data.parent_club} - ${data.name}` : data.name)
+      setShowAddCourse(false)
+      setNewCourseName('')
+      setNewCourseClub('')
+      setNewCourseCity('')
+    }
+    setAddingCourse(false)
   }
 
   async function handleJoin(meetupId: string) {
@@ -517,16 +553,69 @@ export default function TeeTimesPage() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-1.5">Where?</label>
-                    <input type="text" value={formClub} onChange={e => setFormClub(e.target.value)} placeholder="Search courses..." className="w-full bg-dark-700 border border-dark-600 text-gray-100 placeholder-gray-500 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none mb-2" />
-                    {formClub.trim() && (
-                      <div className="max-h-40 overflow-y-auto bg-dark-700 border border-dark-600 rounded-xl">
-                        {courses.filter(c => c.name.toLowerCase().includes(formClub.toLowerCase()) || c.parent_club?.toLowerCase().includes(formClub.toLowerCase())).slice(0, 6).map(course => (
-                          <button key={course.id} type="button" onClick={() => { setFormCourseId(course.id); setFormClub(course.parent_club ? `${course.parent_club} - ${course.name}` : course.name) }} className={`w-full text-left px-4 py-2.5 text-sm transition-colors border-b border-dark-600 last:border-b-0 ${formCourseId === course.id ? 'bg-emerald-900/40 text-emerald-300' : 'text-gray-300 hover:bg-dark-600'}`}>
-                            <span className="font-medium">{course.name}</span>
-                            {course.parent_club && <span className="text-gray-500 text-xs ml-2">{course.parent_club}</span>}
-                            {course.city && <span className="text-gray-500 text-xs ml-1">&middot; {course.city}, {course.state}</span>}
+                    <input type="text" value={formClub} onChange={e => { setFormClub(e.target.value); setFormCourseId(''); setShowAddCourse(false) }} placeholder="Search courses..." className="w-full bg-dark-700 border border-dark-600 text-gray-100 placeholder-gray-500 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none mb-2" />
+                    {formClub.trim() && !formCourseId && !showAddCourse && (() => {
+                      const filtered = courses.filter(c => c.name.toLowerCase().includes(formClub.toLowerCase()) || c.parent_club?.toLowerCase().includes(formClub.toLowerCase()))
+                      return (
+                        <div className="max-h-48 overflow-y-auto bg-dark-700 border border-dark-600 rounded-xl">
+                          {filtered.slice(0, 6).map(course => (
+                            <button key={course.id} type="button" onClick={() => { setFormCourseId(course.id); setFormClub(course.parent_club ? `${course.parent_club} - ${course.name}` : course.name) }} className="w-full text-left px-4 py-2.5 text-sm transition-colors border-b border-dark-600 last:border-b-0 text-gray-300 hover:bg-dark-600">
+                              <span className="font-medium">{course.name}</span>
+                              {course.parent_club && <span className="text-gray-500 text-xs ml-2">{course.parent_club}</span>}
+                              {course.city && <span className="text-gray-500 text-xs ml-1">&middot; {course.city}, {course.state}</span>}
+                            </button>
+                          ))}
+                          {/* Add Course option */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShowAddCourse(true)
+                              setNewCourseName(formClub.trim())
+                            }}
+                            className="w-full text-left px-4 py-3 text-sm font-medium text-emerald-400 hover:bg-emerald-900/20 border-t border-dark-600 transition-colors"
+                          >
+                            + Don&apos;t see it? Add &quot;{formClub.trim()}&quot;
                           </button>
-                        ))}
+                        </div>
+                      )
+                    })()}
+
+                    {/* Add Course inline form */}
+                    {showAddCourse && (
+                      <div className="bg-dark-700 border border-emerald-800/40 rounded-xl p-4 space-y-3">
+                        <p className="text-xs font-semibold text-emerald-400">Add a new course</p>
+                        <input
+                          type="text"
+                          value={newCourseName}
+                          onChange={e => setNewCourseName(e.target.value)}
+                          placeholder="Course name"
+                          className="w-full bg-dark-600 border border-dark-500 text-gray-100 placeholder-gray-500 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none"
+                        />
+                        <input
+                          type="text"
+                          value={newCourseClub}
+                          onChange={e => setNewCourseClub(e.target.value)}
+                          placeholder="Club name (optional, e.g. Ibis Golf & CC)"
+                          className="w-full bg-dark-600 border border-dark-500 text-gray-100 placeholder-gray-500 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none"
+                        />
+                        <input
+                          type="text"
+                          value={newCourseCity}
+                          onChange={e => setNewCourseCity(e.target.value)}
+                          placeholder="City (e.g. West Palm Beach)"
+                          className="w-full bg-dark-600 border border-dark-500 text-gray-100 placeholder-gray-500 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none"
+                        />
+                        <div className="flex gap-2">
+                          <button type="button" onClick={() => setShowAddCourse(false)} className="flex-1 px-3 py-2 rounded-lg text-sm font-medium text-gray-400 bg-dark-600 hover:bg-dark-500 transition-colors">Cancel</button>
+                          <button
+                            type="button"
+                            onClick={handleAddCourse}
+                            disabled={addingCourse || !newCourseName.trim() || !newCourseCity.trim()}
+                            className="flex-1 px-3 py-2 rounded-lg text-sm font-semibold bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-40 transition-colors"
+                          >
+                            {addingCourse ? 'Adding...' : 'Add Course'}
+                          </button>
+                        </div>
                       </div>
                     )}
                   </div>
