@@ -48,10 +48,10 @@ export default function ProposePage() {
     if (el) el.scrollTop = el.scrollHeight
   }, [chatMessages, chatLoading, readyData])
 
-  async function handleChatSend() {
-    if (!chatInput.trim() || chatLoading) return
+  async function sendMessage(text: string) {
+    if (!text.trim() || chatLoading) return
 
-    const userMsg: ChatMessage = { role: 'user', content: chatInput.trim() }
+    const userMsg: ChatMessage = { role: 'user', content: text.trim() }
     const updatedMessages = [...chatMessages, userMsg]
     setChatMessages(updatedMessages)
     setChatInput('')
@@ -97,6 +97,60 @@ export default function ProposePage() {
       chatInputRef.current?.focus()
     }
   }
+
+  async function handleChatSend() {
+    sendMessage(chatInput)
+  }
+
+  // Detect what quick-reply buttons to show based on last assistant message
+  function getQuickReplies(): { label: string; value: string }[] {
+    if (chatLoading || posting || readyData) return []
+    const lastMsg = chatMessages[chatMessages.length - 1]
+    if (!lastMsg || lastMsg.role !== 'assistant') return []
+    const text = lastMsg.content.toLowerCase()
+
+    // Asking about time of day
+    if (/what time|morning.*afternoon|when.*thinking|time.*work|time.*prefer/i.test(text) && !/where|area|course|location/i.test(text)) {
+      return [
+        { label: 'Morning', value: 'Morning' },
+        { label: 'Afternoon', value: 'Afternoon' },
+        { label: 'Evening', value: 'Evening' },
+        { label: 'Anytime', value: 'Anytime — I\'m flexible' },
+      ]
+    }
+
+    // First message — suggest days
+    if (chatMessages.length === 1) {
+      const days: { label: string; value: string }[] = []
+      const now = new Date()
+      for (let i = 0; i < 5; i++) {
+        const d = new Date(now)
+        d.setDate(d.getDate() + i)
+        const dayName = i === 0 ? 'Today' : i === 1 ? 'Tomorrow' : format(d, 'EEEE')
+        days.push({ label: dayName, value: dayName })
+      }
+      days.push({ label: 'This weekend', value: 'This weekend' })
+      return days
+    }
+
+    // Asking about day/when
+    if (/what day|when.*play|when.*work|which day|what.*available/i.test(text) && !/time|morning|afternoon/i.test(text)) {
+      const days: { label: string; value: string }[] = []
+      const now = new Date()
+      for (let i = 0; i < 5; i++) {
+        const d = new Date(now)
+        d.setDate(d.getDate() + i)
+        const dayName = i === 0 ? 'Today' : i === 1 ? 'Tomorrow' : format(d, 'EEEE')
+        days.push({ label: dayName, value: dayName })
+      }
+      days.push({ label: 'This weekend', value: 'This weekend' })
+      return days
+    }
+
+    return []
+  }
+
+  const quickReplies = getQuickReplies()
 
   async function handlePostToTeetimes() {
     if (!userId || !readyData || posting) return
@@ -333,8 +387,26 @@ export default function ProposePage() {
             )}
           </div>
 
+          {/* Quick Replies */}
+          {quickReplies.length > 0 && (
+            <div className="px-5 pt-3 pb-0 bg-dark-900/40 border-t border-dark-700">
+              <div className="flex flex-wrap gap-2">
+                {quickReplies.map((qr, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => sendMessage(qr.value)}
+                    className="px-4 py-2 rounded-xl text-sm font-medium bg-dark-700 text-gray-300 border border-dark-600 hover:bg-emerald-900/30 hover:text-emerald-400 hover:border-emerald-800/50 transition-colors"
+                  >
+                    {qr.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Chat Input */}
-          <div className="px-5 py-4 border-t border-dark-700 bg-dark-900/40">
+          <div className={`px-5 py-4 ${quickReplies.length === 0 ? 'border-t border-dark-700' : ''} bg-dark-900/40`}>
             <div className="flex gap-3">
               <input
                 ref={chatInputRef}

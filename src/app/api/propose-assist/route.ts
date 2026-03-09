@@ -101,7 +101,9 @@ General:
 - Ask ONE follow-up question at a time — don't overwhelm with multiple questions
 - When you have day, time, AND course nailed down, give a confident summary like "All set! Saturday at 10am at Ibis - Tradition. Choose your group size and hit Post!"
 - NEVER generate times without also having a course/location. If you have times but no location, set times=[] and ask where.
-- If the user mentions needing extra players (e.g. "need a 3rd", "need a 4th", "looking for players"), acknowledge it — the app will let them set group size when posting.`
+- If the user mentions needing extra players (e.g. "need a 3rd", "need a 4th", "looking for players"), acknowledge it — the app will let them set group size when posting.
+- IMPORTANT: Do NOT list or enumerate courses in your message text. The UI will display course chips automatically from the courses array. Just reference them naturally (e.g. "Found some great options near West Palm!" not "Here are the courses: 1. Ibis - Tradition 2. PGA National..."). Keep your message short — the data speaks for itself.
+- The UI shows quick-reply buttons for time of day (Morning, Afternoon, Evening, Anytime) when you ask about time. So keep your time question simple and natural.`
 }
 
 export async function POST(req: NextRequest) {
