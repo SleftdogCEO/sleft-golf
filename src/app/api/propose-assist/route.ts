@@ -99,8 +99,9 @@ Rules for COURSES:
 General:
 - Be fun and brief in the message (golf-themed, 1-3 sentences)
 - Ask ONE follow-up question at a time — don't overwhelm with multiple questions
-- When you have day, time, AND course nailed down, give a confident summary like "All set! Saturday at 10am at Ibis - Tradition. Hit Create & Share to send it to your crew!"
-- NEVER generate times without also having a course/location. If you have times but no location, set times=[] and ask where.`
+- When you have day, time, AND course nailed down, give a confident summary like "All set! Saturday at 10am at Ibis - Tradition. Choose your group size and hit Post!"
+- NEVER generate times without also having a course/location. If you have times but no location, set times=[] and ask where.
+- If the user mentions needing extra players (e.g. "need a 3rd", "need a 4th", "looking for players"), acknowledge it — the app will let them set group size when posting.`
 }
 
 export async function POST(req: NextRequest) {
