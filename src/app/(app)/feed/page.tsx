@@ -276,11 +276,26 @@ export default function FeedPage() {
         <h1 className="text-3xl font-bold text-white mb-6">Feed</h1>
 
         {/* Quick Round Post — Primary CTA */}
-        {user && (
-          <div className="mb-4">
+        <div className="mb-4">
+          {user ? (
             <QuickRoundPost user={user} onPostCreated={fetchPosts} />
-          </div>
-        )}
+          ) : (
+            <a
+              href="/signup"
+              className="block w-full bg-gradient-to-r from-emerald-600 to-teal-500 rounded-2xl p-5 text-white text-left hover:from-emerald-500 hover:to-teal-400 transition-all shadow-lg group"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <span className="text-3xl">⛳</span>
+                  <div>
+                    <h3 className="text-lg font-bold">I Played!</h3>
+                    <p className="text-emerald-100 text-sm">Sign up to post your rounds</p>
+                  </div>
+                </div>
+              </div>
+            </a>
+          )}
+        </div>
 
         {/* Secondary: Text/Photo Post (compact) */}
         {user && (
