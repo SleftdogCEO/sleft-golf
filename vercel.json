@@ -1,7 +1,11 @@
 {
   "crons": [
     {
-      "path": "/api/cron/reminders",
+      "path": "/api/cron/reminders?type=night_before",
+      "schedule": "0 0 * * *"
+    },
+    {
+      "path": "/api/cron/reminders?type=morning_of",
       "schedule": "0 12 * * *"
     }
   ]
