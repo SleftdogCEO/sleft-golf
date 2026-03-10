@@ -25,7 +25,7 @@ export function DailyDadJoke({ variant = 'card' }: { variant?: 'card' | 'banner'
           <div className="flex-1">
             <div className="flex items-center gap-2 mb-3">
               <span className="text-2xl">&#9971;</span>
-              <h3 className="font-bold text-lg">Daily Golf Dad Joke</h3>
+              <h3 className="font-bold text-lg">Daily Golf Joke</h3>
               <span className="bg-white/20 text-xs font-medium px-2 py-0.5 rounded-full">
                 #{joke.jokeNumber}
               </span>
@@ -74,7 +74,7 @@ export function DailyDadJoke({ variant = 'card' }: { variant?: 'card' | 'banner'
       <div className="bg-emerald-900/20 border border-emerald-800 rounded-xl p-4">
         <div className="flex items-center gap-2 mb-2">
           <span>&#9971;</span>
-          <span className="text-xs font-semibold text-emerald-600 uppercase tracking-wide">Dad Joke of the Day</span>
+          <span className="text-xs font-semibold text-emerald-600 uppercase tracking-wide">Golf Joke of the Day</span>
         </div>
         <p className="text-sm font-medium text-gray-100">{joke.setup}</p>
         {revealed ? (
@@ -99,7 +99,7 @@ export function DailyDadJoke({ variant = 'card' }: { variant?: 'card' | 'banner'
           <div className="flex items-center gap-2">
             <span className="text-2xl">&#9971;</span>
             <div>
-              <h3 className="font-bold text-white text-lg">Dad Joke of the Day</h3>
+              <h3 className="font-bold text-white text-lg">Golf Joke of the Day</h3>
               <p className="text-emerald-100 text-xs">
                 Joke #{joke.jokeNumber} of {GOLF_DAD_JOKES.length}
               </p>

@@ -8,7 +8,7 @@ import { formatDistanceToNow } from 'date-fns'
 import { DailyDadJoke } from '@/components/daily-dad-joke'
 import { GolfReactionPicker } from '@/components/golf-reactions'
 import { GOLF_REACTIONS } from '@/lib/golf-reactions'
-import { TodaysRounds } from '@/components/todays-rounds'
+import { QuickRoundPost } from '@/components/quick-round-post'
 import { useUser } from '@/hooks/use-user'
 
 export default function FeedPage() {
@@ -156,7 +156,6 @@ export default function FeedPage() {
 
   async function addReaction(postId: string, emoji: string) {
     if (!user) return
-    // Optimistic update
     setPostReactions(prev => {
       const next = { ...prev }
       if (!next[postId]) next[postId] = {}
@@ -200,7 +199,6 @@ export default function FeedPage() {
 
     const isLiked = likedPosts.has(postId)
 
-    // Optimistic UI update
     setPosts(prev =>
       prev.map(p =>
         p.id === postId
@@ -231,29 +229,67 @@ export default function FeedPage() {
     }
   }
 
+  // Render a round scorecard inside a post
+  function RoundCard({ post }: { post: Post }) {
+    if (!post.rounds) return null
+    const round = post.rounds
+    const course = round.courses
+    const diff = round.score != null && course?.par ? round.score - course.par : null
+
+    return (
+      <div className="bg-dark-700/60 rounded-xl p-4 mb-3">
+        {/* Course name */}
+        <div className="flex items-center gap-2 text-emerald-400 text-sm font-medium mb-3">
+          <MapPin className="w-4 h-4 flex-shrink-0" />
+          <span>
+            {course?.parent_club ? `${course.parent_club} – ` : ''}
+            {course?.name || 'Unknown Course'}
+          </span>
+        </div>
+
+        {/* Score display */}
+        <div className="flex items-center gap-3">
+          <div className="text-4xl font-black text-white leading-none">
+            {round.score ?? '--'}
+          </div>
+          {diff !== null && (
+            <div className={`text-sm font-bold px-2.5 py-1 rounded-full ${
+              diff < 0 ? 'bg-emerald-900/60 text-emerald-400' :
+              diff === 0 ? 'bg-emerald-900/60 text-emerald-400' :
+              diff <= 10 ? 'bg-yellow-900/60 text-yellow-400' :
+              'bg-red-900/60 text-red-400'
+            }`}>
+              {diff === 0 ? 'Even par' : diff < 0 ? `${diff} under` : `+${diff} over`}
+            </div>
+          )}
+          {course?.par && (
+            <span className="text-xs text-gray-500">Par {course.par}</span>
+          )}
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-dark-950">
       <div className="max-w-2xl mx-auto px-4 py-8">
         <h1 className="text-3xl font-bold text-white mb-6">Feed</h1>
 
-        {/* Today's Rounds */}
-        <div className="mb-6">
-          <TodaysRounds />
-        </div>
+        {/* Quick Round Post — Primary CTA */}
+        {user && (
+          <div className="mb-4">
+            <QuickRoundPost user={user} onPostCreated={fetchPosts} />
+          </div>
+        )}
 
-        {/* Daily Dad Joke */}
-        <div className="mb-6">
-          <DailyDadJoke variant="banner" />
-        </div>
-
-        {/* Create Post Form */}
+        {/* Secondary: Text/Photo Post (compact) */}
         {user && (
           <form
             onSubmit={handleSubmitPost}
-            className="bg-dark-800 rounded-2xl shadow-sm border border-dark-700 p-5 mb-8"
+            className="bg-dark-800 rounded-2xl shadow-sm border border-dark-700 p-4 mb-6"
           >
-            <div className="flex items-start gap-3">
-              <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0 overflow-hidden">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0 overflow-hidden">
                 {user.avatar_url ? (
                   <img
                     src={user.avatar_url}
@@ -261,72 +297,68 @@ export default function FeedPage() {
                     className="w-full h-full object-cover"
                   />
                 ) : (
-                  <span className="text-emerald-700 font-semibold text-sm">
+                  <span className="text-emerald-700 font-semibold text-xs">
                     {user.full_name?.charAt(0)?.toUpperCase() || '?'}
                   </span>
                 )}
               </div>
-              <textarea
+              <input
+                type="text"
                 value={newPostContent}
                 onChange={e => setNewPostContent(e.target.value)}
-                placeholder="Share your golf day..."
-                rows={3}
-                className="flex-1 resize-none border-0 bg-dark-700 rounded-xl px-4 py-3 text-gray-100 placeholder-gray-500 focus:ring-2 focus:ring-emerald-500 focus:bg-dark-600 transition-colors"
+                placeholder="Share a thought..."
+                className="flex-1 bg-dark-700 rounded-xl px-4 py-2 text-sm text-gray-100 placeholder-gray-500 focus:ring-2 focus:ring-emerald-500 focus:bg-dark-600 transition-colors border-0"
               />
+              <div className="flex items-center gap-1">
+                <label className="p-2 text-gray-500 hover:text-emerald-400 cursor-pointer rounded-lg hover:bg-emerald-900/30 transition-colors">
+                  <ImageIcon className="w-4 h-4" />
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageSelect}
+                    className="hidden"
+                  />
+                </label>
+                <button
+                  type="submit"
+                  disabled={submitting || (!newPostContent.trim() && !imageFile)}
+                  className="p-2 text-emerald-500 hover:text-emerald-400 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                >
+                  <Send className="w-4 h-4" />
+                </button>
+              </div>
             </div>
 
             {imagePreview && (
-              <div className="mt-3 ml-13 relative inline-block">
+              <div className="mt-3 ml-11 relative inline-block">
                 <img
                   src={imagePreview}
                   alt="Preview"
-                  className="max-h-48 rounded-xl object-cover"
+                  className="max-h-32 rounded-xl object-cover"
                 />
                 <button
                   type="button"
                   onClick={clearImage}
-                  className="absolute top-2 right-2 bg-black/50 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-black/70 transition-colors"
+                  className="absolute top-1 right-1 bg-black/60 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs hover:bg-black/80"
                 >
-                  x
+                  &times;
                 </button>
               </div>
             )}
 
             {postError && (
-              <div className="mt-3 ml-13 bg-red-900/30 border border-red-800/50 text-red-300 text-sm px-4 py-3 rounded-xl">
+              <div className="mt-2 ml-11 bg-red-900/30 border border-red-800/50 text-red-300 text-sm px-3 py-2 rounded-xl">
                 {postError}
               </div>
             )}
-
-            <div className="flex items-center justify-between mt-3 ml-13">
-              <div>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  onChange={handleImageSelect}
-                  className="hidden"
-                  id="image-upload"
-                />
-                <label
-                  htmlFor="image-upload"
-                  className="inline-flex items-center gap-2 text-gray-400 hover:text-emerald-600 cursor-pointer transition-colors px-3 py-1.5 rounded-lg hover:bg-emerald-900/30"
-                >
-                  <ImageIcon className="w-5 h-5" />
-                  <span className="text-sm font-medium">Photo</span>
-                </label>
-              </div>
-              <button
-                type="submit"
-                disabled={submitting || (!newPostContent.trim() && !imageFile)}
-                className="inline-flex items-center gap-2 bg-emerald-600 text-white px-5 py-2 rounded-xl font-medium text-sm hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-              >
-                <Send className="w-4 h-4" />
-                Post
-              </button>
-            </div>
           </form>
         )}
+
+        {/* Daily Golf Joke */}
+        <div className="mb-6">
+          <DailyDadJoke variant="banner" />
+        </div>
 
         {/* Posts List */}
         {loading ? (
@@ -357,7 +389,7 @@ export default function FeedPage() {
               No posts yet
             </h3>
             <p className="text-gray-400">
-              Share your golf day!
+              Tap &quot;I Played!&quot; to post your first round!
             </p>
           </div>
         ) : (
@@ -391,7 +423,15 @@ export default function FeedPage() {
                         {formatDistanceToNow(new Date(post.created_at), { addSuffix: true })}
                       </p>
                     </div>
+                    {post.rounds && (
+                      <span className="ml-auto text-xs font-medium text-emerald-400 bg-emerald-900/30 px-2 py-0.5 rounded-full">
+                        Round
+                      </span>
+                    )}
                   </div>
+
+                  {/* Round Scorecard (for round-linked posts) */}
+                  {post.rounds && <RoundCard post={post} />}
 
                   {/* Content */}
                   {post.content && (
@@ -400,13 +440,6 @@ export default function FeedPage() {
                     </p>
                   )}
 
-                  {/* Course tag */}
-                  {post.rounds?.courses?.name && (
-                    <div className="inline-flex items-center gap-1.5 text-emerald-400 bg-emerald-900/30 px-3 py-1 rounded-full text-xs font-medium mb-3">
-                      <MapPin className="w-3.5 h-3.5" />
-                      {post.rounds.courses.name}
-                    </div>
-                  )}
                 </div>
 
                 {/* Post Image */}
