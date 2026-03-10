@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import type { Course, Profile } from '@/lib/types'
+import type { Course } from '@/lib/types'
 import { MapPin, Camera, Send, X, Search, ChevronDown } from 'lucide-react'
 
 const VIBES = [
@@ -14,13 +14,15 @@ const VIBES = [
 ]
 
 interface QuickRoundPostProps {
-  user: Profile
   onPostCreated: () => void
 }
 
-export function QuickRoundPost({ user, onPostCreated }: QuickRoundPostProps) {
-  const supabase = createClient()
+export function QuickRoundPost({ onPostCreated }: QuickRoundPostProps) {
+  const supabaseRef = useRef(createClient())
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const [userId, setUserId] = useState<string | null>(null)
+  const [authChecked, setAuthChecked] = useState(false)
   const [expanded, setExpanded] = useState(false)
   const [courseSearch, setCourseSearch] = useState('')
   const [courses, setCourses] = useState<Course[]>([])
@@ -32,23 +34,36 @@ export function QuickRoundPost({ user, onPostCreated }: QuickRoundPostProps) {
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
 
+  // Check auth on mount
+  useEffect(() => {
+    const supabase = supabaseRef.current
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUserId(session?.user?.id ?? null)
+      setAuthChecked(true)
+    })
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUserId(session?.user?.id ?? null)
+      setAuthChecked(true)
+    })
+    return () => subscription.unsubscribe()
+  }, [])
+
+  // Course search
   useEffect(() => {
     if (courseSearch.length >= 2) {
-      const timeout = setTimeout(() => searchCourses(courseSearch), 200)
+      const timeout = setTimeout(() => {
+        supabaseRef.current
+          .from('courses')
+          .select('*')
+          .or(`name.ilike.%${courseSearch}%,parent_club.ilike.%${courseSearch}%,city.ilike.%${courseSearch}%`)
+          .limit(6)
+          .then(({ data }) => { if (data) setCourses(data as Course[]) })
+      }, 200)
       return () => clearTimeout(timeout)
     } else {
       setCourses([])
     }
   }, [courseSearch])
-
-  async function searchCourses(query: string) {
-    const { data } = await supabase
-      .from('courses')
-      .select('*')
-      .or(`name.ilike.%${query}%,parent_club.ilike.%${query}%,city.ilike.%${query}%`)
-      .limit(6)
-    if (data) setCourses(data as Course[])
-  }
 
   function handleImageSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -65,16 +80,25 @@ export function QuickRoundPost({ user, onPostCreated }: QuickRoundPostProps) {
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
+  function handleButtonClick() {
+    if (!authChecked) return
+    if (!userId) {
+      window.location.href = '/signup'
+      return
+    }
+    setExpanded(true)
+  }
+
   async function handleSubmit() {
-    if (!selectedCourse || !score) return
+    if (!selectedCourse || !score || !userId) return
     setSubmitting(true)
+    const supabase = supabaseRef.current
 
     try {
-      // 1. Create the round
       const { data: round, error: roundError } = await supabase
         .from('rounds')
         .insert({
-          user_id: user.id,
+          user_id: userId,
           course_id: selectedCourse.id,
           score: parseInt(score),
           status: 'completed',
@@ -88,10 +112,9 @@ export function QuickRoundPost({ user, onPostCreated }: QuickRoundPostProps) {
         return
       }
 
-      // 2. Upload photo if present
       let imageUrls: string[] = []
       if (imageFile) {
-        const fileName = `${user.id}/${Date.now()}-${imageFile.name}`
+        const fileName = `${userId}/${Date.now()}-${imageFile.name}`
         const { error: uploadError } = await supabase.storage
           .from('posts')
           .upload(fileName, imageFile)
@@ -101,22 +124,19 @@ export function QuickRoundPost({ user, onPostCreated }: QuickRoundPostProps) {
         }
       }
 
-      // 3. Build post content
       const vibeObj = vibe ? VIBES.find(v => v.emoji === vibe) : null
       const contentParts: string[] = []
       if (vibeObj) contentParts.push(`${vibeObj.emoji} ${vibeObj.label}`)
       if (note.trim()) contentParts.push(note.trim())
       const content = contentParts.join('\n') || null
 
-      // 4. Create the post linked to the round
       await supabase.from('posts').insert({
-        user_id: user.id,
+        user_id: userId,
         round_id: round.id,
         content,
         image_urls: imageUrls,
       })
 
-      // Reset form
       setExpanded(false)
       setSelectedCourse(null)
       setCourseSearch('')
@@ -133,7 +153,7 @@ export function QuickRoundPost({ user, onPostCreated }: QuickRoundPostProps) {
   if (!expanded) {
     return (
       <button
-        onClick={() => setExpanded(true)}
+        onClick={handleButtonClick}
         className="w-full bg-gradient-to-r from-emerald-600 to-teal-500 rounded-2xl p-5 text-white text-left hover:from-emerald-500 hover:to-teal-400 transition-all shadow-lg group"
       >
         <div className="flex items-center justify-between">
@@ -141,7 +161,9 @@ export function QuickRoundPost({ user, onPostCreated }: QuickRoundPostProps) {
             <span className="text-3xl">⛳</span>
             <div>
               <h3 className="text-lg font-bold">I Played!</h3>
-              <p className="text-emerald-100 text-sm">Post your round in seconds</p>
+              <p className="text-emerald-100 text-sm">
+                {authChecked && !userId ? 'Sign up to post your rounds' : 'Post your round in seconds'}
+              </p>
             </div>
           </div>
           <ChevronDown className="w-5 h-5 text-emerald-200 group-hover:translate-y-0.5 transition-transform" />
@@ -152,7 +174,6 @@ export function QuickRoundPost({ user, onPostCreated }: QuickRoundPostProps) {
 
   return (
     <div className="bg-dark-800 rounded-2xl shadow-lg border border-emerald-800/50 overflow-hidden">
-      {/* Header */}
       <div className="bg-gradient-to-r from-emerald-600 to-teal-500 px-5 py-3 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className="text-xl">⛳</span>

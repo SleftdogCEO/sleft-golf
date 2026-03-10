@@ -275,35 +275,9 @@ export default function FeedPage() {
       <div className="max-w-2xl mx-auto px-4 py-8">
         <h1 className="text-3xl font-bold text-white mb-6">Feed</h1>
 
-        {/* Quick Round Post — Primary CTA */}
+        {/* Quick Round Post — Primary CTA (handles its own auth) */}
         <div className="mb-4">
-          {profile ? (
-            <QuickRoundPost user={profile} onPostCreated={fetchPosts} />
-          ) : userId ? (
-            <div className="w-full bg-gradient-to-r from-emerald-600 to-teal-500 rounded-2xl p-5 text-white shadow-lg">
-              <div className="flex items-center gap-3">
-                <span className="text-3xl">⛳</span>
-                <div>
-                  <h3 className="text-lg font-bold">Loading your profile...</h3>
-                </div>
-              </div>
-            </div>
-          ) : !authLoading ? (
-            <a
-              href="/signup"
-              className="block w-full bg-gradient-to-r from-emerald-600 to-teal-500 rounded-2xl p-5 text-white text-left hover:from-emerald-500 hover:to-teal-400 transition-all shadow-lg group"
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <span className="text-3xl">⛳</span>
-                  <div>
-                    <h3 className="text-lg font-bold">I Played!</h3>
-                    <p className="text-emerald-100 text-sm">Sign up to post your rounds</p>
-                  </div>
-                </div>
-              </div>
-            </a>
-          ) : null}
+          <QuickRoundPost onPostCreated={fetchPosts} />
         </div>
 
         {/* Secondary: Text/Photo Post (compact) */}
