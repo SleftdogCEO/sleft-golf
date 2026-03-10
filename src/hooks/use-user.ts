@@ -12,18 +12,34 @@ export function useUser() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    async function fetchOrCreateProfile(authUser: User) {
+      const { data } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', authUser.id)
+        .single()
+
+      if (data) {
+        setProfile(data)
+      } else {
+        // Profile doesn't exist yet — create one
+        const { data: created } = await supabase
+          .from('profiles')
+          .upsert({
+            id: authUser.id,
+            full_name: authUser.user_metadata?.full_name || 'Golfer',
+            username: authUser.email?.split('@')[0] || 'golfer',
+          }, { onConflict: 'id' })
+          .select()
+          .single()
+        if (created) setProfile(created)
+      }
+    }
+
     async function getUser() {
       const { data: { user: authUser } } = await supabase.auth.getUser()
       setUser(authUser)
-
-      if (authUser) {
-        const { data } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', authUser.id)
-          .single()
-        if (data) setProfile(data)
-      }
+      if (authUser) await fetchOrCreateProfile(authUser)
       setLoading(false)
     }
     getUser()
@@ -32,12 +48,7 @@ export function useUser() {
       const authUser = session?.user ?? null
       setUser(authUser)
       if (authUser) {
-        const { data } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', authUser.id)
-          .single()
-        if (data) setProfile(data)
+        await fetchOrCreateProfile(authUser)
       } else {
         setProfile(null)
       }
