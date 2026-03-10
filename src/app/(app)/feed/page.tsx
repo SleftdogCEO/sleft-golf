@@ -277,9 +277,18 @@ export default function FeedPage() {
 
         {/* Quick Round Post — Primary CTA */}
         <div className="mb-4">
-          {user ? (
-            <QuickRoundPost user={user} onPostCreated={fetchPosts} />
-          ) : (
+          {profile ? (
+            <QuickRoundPost user={profile} onPostCreated={fetchPosts} />
+          ) : userId ? (
+            <div className="w-full bg-gradient-to-r from-emerald-600 to-teal-500 rounded-2xl p-5 text-white shadow-lg">
+              <div className="flex items-center gap-3">
+                <span className="text-3xl">⛳</span>
+                <div>
+                  <h3 className="text-lg font-bold">Loading your profile...</h3>
+                </div>
+              </div>
+            </div>
+          ) : !authLoading ? (
             <a
               href="/signup"
               className="block w-full bg-gradient-to-r from-emerald-600 to-teal-500 rounded-2xl p-5 text-white text-left hover:from-emerald-500 hover:to-teal-400 transition-all shadow-lg group"
@@ -294,26 +303,26 @@ export default function FeedPage() {
                 </div>
               </div>
             </a>
-          )}
+          ) : null}
         </div>
 
         {/* Secondary: Text/Photo Post (compact) */}
-        {user && (
+        {(profile || user) && (
           <form
             onSubmit={handleSubmitPost}
             className="bg-dark-800 rounded-2xl shadow-sm border border-dark-700 p-4 mb-6"
           >
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0 overflow-hidden">
-                {user.avatar_url ? (
+                {(profile || user)?.avatar_url ? (
                   <img
-                    src={user.avatar_url}
-                    alt={user.full_name}
+                    src={(profile || user)!.avatar_url!}
+                    alt={(profile || user)!.full_name}
                     className="w-full h-full object-cover"
                   />
                 ) : (
                   <span className="text-emerald-700 font-semibold text-xs">
-                    {user.full_name?.charAt(0)?.toUpperCase() || '?'}
+                    {(profile || user)?.full_name?.charAt(0)?.toUpperCase() || '?'}
                   </span>
                 )}
               </div>

@@ -23,16 +23,29 @@ export function useUser() {
         setProfile(data)
       } else {
         // Profile doesn't exist yet — create one
-        const { data: created } = await supabase
+        const baseUsername = authUser.email?.split('@')[0] || 'golfer'
+        const uniqueUsername = `${baseUsername}_${Date.now().toString(36)}`
+        const { data: created, error: createError } = await supabase
           .from('profiles')
           .upsert({
             id: authUser.id,
             full_name: authUser.user_metadata?.full_name || 'Golfer',
-            username: authUser.email?.split('@')[0] || 'golfer',
+            username: uniqueUsername,
           }, { onConflict: 'id' })
           .select()
           .single()
-        if (created) setProfile(created)
+        if (created) {
+          setProfile(created)
+        } else {
+          console.error('Profile creation failed:', createError)
+          // Try fetching again — trigger may have created it
+          const { data: retryData } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', authUser.id)
+            .single()
+          if (retryData) setProfile(retryData)
+        }
       }
     }
 
