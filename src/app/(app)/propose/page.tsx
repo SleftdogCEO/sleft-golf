@@ -7,11 +7,19 @@ import { Calendar, MapPin, Send, Bot, User as UserIcon, Check, Users, Clock } fr
 import { useUser } from '@/hooks/use-user'
 import { format } from 'date-fns'
 
+type CourseChip = {
+  id: string
+  name: string
+  price_tier?: number | null
+  green_fee_estimate?: number | null
+  is_private?: boolean
+}
+
 type ChatMessage = {
   role: 'user' | 'assistant'
   content: string
   times?: { dateTime: string; label: string }[]
-  courses?: { id: string; name: string }[]
+  courses?: CourseChip[]
   title?: string | null
 }
 
@@ -38,7 +46,7 @@ export default function ProposePage() {
   const [readyData, setReadyData] = useState<{
     title: string
     times: { dateTime: string; label: string }[]
-    courses: { id: string; name: string }[]
+    courses: CourseChip[]
   } | null>(null)
   const [groupSize, setGroupSize] = useState(4)
   const [posting, setPosting] = useState(false)
@@ -273,15 +281,22 @@ export default function ProposePage() {
                     </div>
                   )}
 
-                  {/* Show suggested courses */}
+                  {/* Show suggested courses with pricing */}
                   {msg.role === 'assistant' && msg.courses && msg.courses.length > 0 && (
                     <div className="mt-1.5 flex flex-wrap gap-1">
-                      {msg.courses.map((c, j) => (
-                        <span key={j} className="inline-flex items-center gap-1.5 bg-dark-700 border border-dark-600 px-2.5 py-1 rounded-lg text-xs text-gray-300">
-                          <MapPin className="w-3 h-3 text-emerald-400" />
-                          {c.name}
-                        </span>
-                      ))}
+                      {msg.courses.map((c, j) => {
+                        const tier = c.price_tier
+                        const tierLabel = tier === 1 ? '$' : tier === 2 ? '$$' : tier === 3 ? '$$$' : tier === 4 ? '$$$$' : null
+                        const tierColor = tier === 1 ? 'text-green-400' : tier === 2 ? 'text-emerald-400' : tier === 3 ? 'text-yellow-400' : tier === 4 ? 'text-orange-400' : ''
+                        return (
+                          <span key={j} className="inline-flex items-center gap-1.5 bg-dark-700 border border-dark-600 px-2.5 py-1 rounded-lg text-xs text-gray-300">
+                            <MapPin className="w-3 h-3 text-emerald-400" />
+                            {c.name}
+                            {tierLabel && <span className={`font-bold ${tierColor} ml-0.5`}>{tierLabel}</span>}
+                            {c.is_private && <span className="text-[10px] text-gray-500 ml-0.5">Private</span>}
+                          </span>
+                        )
+                      })}
                     </div>
                   )}
                 </div>
@@ -322,12 +337,19 @@ export default function ProposePage() {
                         {t.label}
                       </span>
                     ))}
-                    {readyData.courses.map((c, i) => (
-                      <span key={i} className="inline-flex items-center gap-1 bg-dark-700 px-2 py-1 rounded-lg">
-                        <MapPin className="w-3 h-3 text-emerald-400" />
-                        {c.name}
-                      </span>
-                    ))}
+                    {readyData.courses.map((c, i) => {
+                      const tier = c.price_tier
+                      const tierLabel = tier === 1 ? '$' : tier === 2 ? '$$' : tier === 3 ? '$$$' : tier === 4 ? '$$$$' : null
+                      const tierColor = tier === 1 ? 'text-green-400' : tier === 2 ? 'text-emerald-400' : tier === 3 ? 'text-yellow-400' : tier === 4 ? 'text-orange-400' : ''
+                      return (
+                        <span key={i} className="inline-flex items-center gap-1 bg-dark-700 px-2 py-1 rounded-lg">
+                          <MapPin className="w-3 h-3 text-emerald-400" />
+                          {c.name}
+                          {tierLabel && <span className={`font-bold ${tierColor}`}>{tierLabel}</span>}
+                          {c.is_private && <span className="text-[10px] text-gray-500">Private</span>}
+                        </span>
+                      )
+                    })}
                   </div>
                 </div>
 

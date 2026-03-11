@@ -14,6 +14,9 @@ type CourseRow = {
   parent_club: string | null
   city: string | null
   state: string | null
+  price_tier: number | null
+  green_fee_estimate: number | null
+  is_private: boolean
 }
 
 let cachedCourses: CourseRow[] | null = null
@@ -22,7 +25,7 @@ async function getCourses(): Promise<CourseRow[]> {
   if (cachedCourses) return cachedCourses
   const { data } = await supabase
     .from('courses')
-    .select('id, name, parent_club, city, state')
+    .select('id, name, parent_club, city, state, price_tier, green_fee_estimate, is_private')
     .order('name')
   cachedCourses = data || []
   return cachedCourses
@@ -47,10 +50,13 @@ function buildDateReference(): string {
 }
 
 function buildCourseReference(courses: CourseRow[]): string {
+  const tierLabel = (t: number | null) => t === 1 ? '$' : t === 2 ? '$$' : t === 3 ? '$$$' : t === 4 ? '$$$$' : '?'
   return courses.map(c => {
     const club = c.parent_club ? `${c.parent_club} - ` : ''
     const loc = [c.city, c.state].filter(Boolean).join(', ')
-    return `ID: "${c.id}" | ${club}${c.name} | ${loc}`
+    const price = c.price_tier ? ` | ${tierLabel(c.price_tier)}${c.green_fee_estimate ? ` ~$${c.green_fee_estimate}` : ''}` : ''
+    const priv = c.is_private ? ' | PRIVATE' : ''
+    return `ID: "${c.id}" | ${club}${c.name} | ${loc}${price}${priv}`
   }).join('\n')
 }
 
@@ -95,6 +101,11 @@ Rules for COURSES:
 - Use the exact "id" from the course list. Use a display name like "Club - Course" or just "Course".
 - courses = [] if no location or course info given
 - Only suggest courses that exist in the list above. Never make up courses.
+- Each course has a price tier: $ (under $50), $$ ($50-100), $$$ ($100-200), $$$$ ($200+/private).
+- If user mentions budget (e.g. "cheap", "affordable", "budget", "nothing too expensive"), prefer $ and $$ courses.
+- If user mentions wanting premium/nice/upscale courses, prefer $$$ and $$$$ courses.
+- Courses marked PRIVATE require membership — mention this if suggesting them.
+- Don't mention prices in your message — the UI shows price badges on course chips automatically.
 
 General:
 - Be fun and brief in the message (golf-themed, 1-3 sentences)
@@ -164,11 +175,16 @@ export async function POST(req: NextRequest) {
 
     times = times.slice(0, 7)
 
-    // Validate course IDs against actual courses
-    let suggestedCourses: { id: string; name: string }[] = []
+    // Validate course IDs against actual courses and attach pricing
+    const courseMap = new Map(courses.map(c => [c.id, c]))
+    let suggestedCourses: { id: string; name: string; price_tier: number | null; green_fee_estimate: number | null; is_private: boolean }[] = []
     if (Array.isArray(parsed.courses)) {
-      const courseIds = new Set(courses.map(c => c.id))
-      suggestedCourses = parsed.courses.filter((c: any) => c.id && courseIds.has(c.id))
+      suggestedCourses = parsed.courses
+        .filter((c: any) => c.id && courseMap.has(c.id))
+        .map((c: any) => {
+          const full = courseMap.get(c.id)!
+          return { id: c.id, name: c.name, price_tier: full.price_tier, green_fee_estimate: full.green_fee_estimate, is_private: full.is_private }
+        })
     }
 
     return NextResponse.json({

@@ -43,6 +43,9 @@ type MeetupCourse = {
   lat: number | null
   lng: number | null
   parent_club: string | null
+  price_tier: number | null
+  green_fee_estimate: number | null
+  is_private: boolean
 }
 
 type Meetup = {
@@ -72,6 +75,9 @@ type CourseOption = {
   city: string | null
   state: string | null
   parent_club: string | null
+  price_tier: number | null
+  green_fee_estimate: number | null
+  is_private: boolean
 }
 
 type Filter = 'open' | 'my_times' | 'past'
@@ -146,7 +152,7 @@ export default function TeeTimesPage() {
   async function fetchCourses() {
     const { data } = await supabase
       .from('courses')
-      .select('id, name, city, state, parent_club')
+      .select('id, name, city, state, parent_club, price_tier, green_fee_estimate, is_private')
       .order('name', { ascending: true })
     if (data) setCourses(data)
   }
@@ -165,7 +171,7 @@ export default function TeeTimesPage() {
         holes: 18,
         par: 72,
       })
-      .select('id, name, city, state, parent_club')
+      .select('id, name, city, state, parent_club, price_tier, green_fee_estimate, is_private')
       .single()
 
     if (data && !error) {
@@ -563,6 +569,17 @@ export default function TeeTimesPage() {
                               <span className="font-medium">{course.name}</span>
                               {course.parent_club && <span className="text-gray-500 text-xs ml-2">{course.parent_club}</span>}
                               {course.city && <span className="text-gray-500 text-xs ml-1">&middot; {course.city}, {course.state}</span>}
+                              {course.price_tier && (
+                                <span className={`text-xs font-bold ml-2 ${
+                                  course.price_tier === 1 ? 'text-green-400' :
+                                  course.price_tier === 2 ? 'text-emerald-400' :
+                                  course.price_tier === 3 ? 'text-yellow-400' :
+                                  'text-orange-400'
+                                }`}>
+                                  {'$'.repeat(course.price_tier)}
+                                </span>
+                              )}
+                              {course.is_private && <span className="text-[10px] text-gray-500 ml-1">Private</span>}
                             </button>
                           ))}
                           {/* Add Course option */}
@@ -781,6 +798,16 @@ export default function TeeTimesPage() {
                             {meetup.courses.parent_club ? `${meetup.courses.parent_club} - ` : ''}
                             {meetup.courses.name}
                           </span>
+                          {meetup.courses.price_tier && (
+                            <span className={`text-xs font-bold flex-shrink-0 ${
+                              meetup.courses.price_tier === 1 ? 'text-green-400' :
+                              meetup.courses.price_tier === 2 ? 'text-emerald-400' :
+                              meetup.courses.price_tier === 3 ? 'text-yellow-400' :
+                              'text-orange-400'
+                            }`}>
+                              {'$'.repeat(meetup.courses.price_tier)}
+                            </span>
+                          )}
                         </div>
                       )}
                       <div className="flex items-center gap-1.5 text-gray-300">
