@@ -9,6 +9,8 @@ import { DailyDadJoke } from '@/components/daily-dad-joke'
 import { GolfReactionPicker } from '@/components/golf-reactions'
 import { GOLF_REACTIONS } from '@/lib/golf-reactions'
 import { QuickRoundPost } from '@/components/quick-round-post'
+import { LeaderboardWidget } from '@/components/leaderboard-widget'
+import { HotCoursesWidget } from '@/components/hot-courses-widget'
 import { useUser } from '@/hooks/use-user'
 
 export default function FeedPage() {
@@ -356,6 +358,12 @@ export default function FeedPage() {
         {/* Daily Golf Joke */}
         <div className="mb-6">
           <DailyDadJoke variant="banner" />
+        </div>
+
+        {/* Leaderboard + Hot Courses */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+          <LeaderboardWidget />
+          <HotCoursesWidget />
         </div>
 
         {/* Posts List */}
