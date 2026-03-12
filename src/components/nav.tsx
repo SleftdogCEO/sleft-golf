@@ -113,18 +113,18 @@ export default function Nav() {
                 </>
               ) : (
                 <div className="flex items-center gap-2">
-                  <Link
+                  <a
                     href="/login"
                     className="px-3 py-2 rounded-lg text-sm font-medium text-gray-400 hover:text-white hover:bg-dark-800 transition-colors"
                   >
                     Log in
-                  </Link>
-                  <Link
+                  </a>
+                  <a
                     href="/signup"
                     className="px-4 py-2 rounded-lg text-sm font-semibold bg-emerald-600 text-white hover:bg-emerald-500 transition-colors"
                   >
                     Sign up
-                  </Link>
+                  </a>
                 </div>
               )}
             </div>
@@ -166,20 +166,18 @@ export default function Nav() {
                 </>
               ) : (
                 <div className="flex flex-col gap-2 w-full">
-                  <Link
+                  <a
                     href="/login"
-                    onClick={() => setMobileOpen(false)}
                     className="w-full text-center px-4 py-2.5 rounded-lg text-sm font-medium text-gray-400 bg-dark-800 hover:text-white transition-colors"
                   >
                     Log in
-                  </Link>
-                  <Link
+                  </a>
+                  <a
                     href="/signup"
-                    onClick={() => setMobileOpen(false)}
                     className="w-full text-center px-4 py-2.5 rounded-lg text-sm font-semibold bg-emerald-600 text-white hover:bg-emerald-500 transition-colors"
                   >
                     Sign up
-                  </Link>
+                  </a>
                 </div>
               )}
             </div>
