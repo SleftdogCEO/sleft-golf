@@ -21,71 +21,73 @@ export function HotCoursesWidget() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    async function fetch() {
-      const supabase = supabaseRef.current
+    async function loadHotCourses() {
+      try {
+        const supabase = supabaseRef.current
 
-      // Get recent rounds with course + player info
-      const { data: rounds } = await supabase
-        .from('rounds')
-        .select('course_id, courses(id, name, parent_club, city, state, par), profiles(full_name)')
-        .eq('status', 'completed')
-        .not('course_id', 'is', null)
-        .order('created_at', { ascending: false })
-        .limit(200)
+        const { data: rounds, error } = await supabase
+          .from('rounds')
+          .select('course_id, courses(id, name, parent_club, city, state, par), profiles(full_name)')
+          .eq('status', 'completed')
+          .not('course_id', 'is', null)
+          .order('created_at', { ascending: false })
+          .limit(200)
 
-      if (!rounds?.length) { setLoading(false); return }
+        if (error || !rounds?.length) { setLoading(false); return }
 
-      const byCourse = new Map<string, {
-        name: string
-        parent_club: string | null
-        city: string | null
-        state: string | null
-        par: number | null
-        count: number
-        players: Set<string>
-      }>()
+        const byCourse = new Map<string, {
+          name: string
+          parent_club: string | null
+          city: string | null
+          state: string | null
+          par: number | null
+          count: number
+          players: Set<string>
+        }>()
 
-      for (const r of rounds) {
-        const courseRaw = r.courses as unknown
-        const course = (Array.isArray(courseRaw) ? courseRaw[0] : courseRaw) as { id: string; name: string; parent_club: string | null; city: string | null; state: string | null; par: number | null } | null
-        const profileRaw = r.profiles as unknown
-        const profile = (Array.isArray(profileRaw) ? profileRaw[0] : profileRaw) as { full_name: string } | null
-        if (!course) continue
+        for (const r of rounds) {
+          const course = r.courses as unknown as { id: string; name: string; parent_club: string | null; city: string | null; state: string | null; par: number | null } | null
+          const profile = r.profiles as unknown as { full_name: string } | null
+          if (!course) continue
 
-        if (!byCourse.has(course.id)) {
-          byCourse.set(course.id, {
-            name: course.name,
-            parent_club: course.parent_club,
-            city: course.city,
-            state: course.state,
-            par: course.par,
-            count: 0,
-            players: new Set(),
-          })
+          if (!byCourse.has(course.id)) {
+            byCourse.set(course.id, {
+              name: course.name,
+              parent_club: course.parent_club,
+              city: course.city,
+              state: course.state,
+              par: course.par,
+              count: 0,
+              players: new Set(),
+            })
+          }
+          const entry = byCourse.get(course.id)!
+          entry.count++
+          if (profile) entry.players.add(profile.full_name)
         }
-        const entry = byCourse.get(course.id)!
-        entry.count++
-        if (profile) entry.players.add(profile.full_name)
+
+        const hot: HotCourse[] = Array.from(byCourse.entries())
+          .map(([course_id, data]) => ({
+            course_id,
+            name: data.name,
+            parent_club: data.parent_club,
+            city: data.city,
+            state: data.state,
+            par: data.par,
+            round_count: data.count,
+            recent_players: Array.from(data.players).slice(0, 3),
+          }))
+          .sort((a, b) => b.round_count - a.round_count)
+          .slice(0, 5)
+
+        setCourses(hot)
+      } catch (err) {
+        console.error('Hot courses error:', err)
+      } finally {
+        setLoading(false)
       }
-
-      const hot: HotCourse[] = Array.from(byCourse.entries())
-        .map(([course_id, data]) => ({
-          course_id,
-          name: data.name,
-          parent_club: data.parent_club,
-          city: data.city,
-          state: data.state,
-          par: data.par,
-          round_count: data.count,
-          recent_players: Array.from(data.players).slice(0, 3),
-        }))
-        .sort((a, b) => b.round_count - a.round_count)
-        .slice(0, 5)
-
-      setCourses(hot)
-      setLoading(false)
     }
-    fetch()
+    loadHotCourses()
   }, [])
 
   if (loading) {

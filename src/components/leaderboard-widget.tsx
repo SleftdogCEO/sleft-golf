@@ -20,66 +20,67 @@ export function LeaderboardWidget() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    async function fetch() {
-      const supabase = supabaseRef.current
+    async function loadLeaderboard() {
+      try {
+        const supabase = supabaseRef.current
 
-      // Get recent rounds with course par info
-      const { data: rounds } = await supabase
-        .from('rounds')
-        .select('user_id, score, courses(par), profiles(full_name, avatar_url)')
-        .eq('status', 'completed')
-        .not('score', 'is', null)
-        .order('created_at', { ascending: false })
-        .limit(200)
+        const { data: rounds, error } = await supabase
+          .from('rounds')
+          .select('user_id, score, courses(par), profiles(full_name, avatar_url)')
+          .eq('status', 'completed')
+          .not('score', 'is', null)
+          .order('created_at', { ascending: false })
+          .limit(200)
 
-      if (!rounds?.length) { setLoading(false); return }
+        if (error || !rounds?.length) { setLoading(false); return }
 
-      const byUser = new Map<string, {
-        full_name: string
-        avatar_url: string | null
-        scores: number[]
-        diffs: number[]
-      }>()
+        const byUser = new Map<string, {
+          full_name: string
+          avatar_url: string | null
+          scores: number[]
+          diffs: number[]
+        }>()
 
-      for (const r of rounds) {
-        const uid = r.user_id
-        const profileRaw = r.profiles as unknown
-        const profile = (Array.isArray(profileRaw) ? profileRaw[0] : profileRaw) as { full_name: string; avatar_url: string | null } | null
-        if (!profile) continue
+        for (const r of rounds) {
+          const uid = r.user_id
+          const profile = r.profiles as unknown as { full_name: string; avatar_url: string | null } | null
+          if (!profile) continue
 
-        if (!byUser.has(uid)) {
-          byUser.set(uid, {
-            full_name: profile.full_name,
-            avatar_url: profile.avatar_url,
-            scores: [],
-            diffs: [],
-          })
+          if (!byUser.has(uid)) {
+            byUser.set(uid, {
+              full_name: profile.full_name,
+              avatar_url: profile.avatar_url,
+              scores: [],
+              diffs: [],
+            })
+          }
+          const entry = byUser.get(uid)!
+          if (r.score != null) entry.scores.push(r.score)
+          const courseObj = r.courses as unknown as { par: number } | null
+          if (courseObj?.par && r.score != null) entry.diffs.push(r.score - courseObj.par)
         }
-        const entry = byUser.get(uid)!
-        entry.scores.push(r.score!)
-        const coursesRaw = r.courses as unknown
-        const courseObj = (Array.isArray(coursesRaw) ? coursesRaw[0] : coursesRaw) as { par: number } | null
-        const par = courseObj?.par
-        if (par) entry.diffs.push(r.score! - par)
+
+        const leaderboard: LeaderboardEntry[] = Array.from(byUser.entries())
+          .map(([user_id, data]) => ({
+            user_id,
+            full_name: data.full_name,
+            avatar_url: data.avatar_url,
+            rounds_played: data.scores.length,
+            best_score: Math.min(...data.scores),
+            avg_score: Math.round(data.scores.reduce((a, b) => a + b, 0) / data.scores.length),
+            best_diff: data.diffs.length ? Math.min(...data.diffs) : null,
+          }))
+          .sort((a, b) => (a.best_diff ?? 999) - (b.best_diff ?? 999))
+          .slice(0, 5)
+
+        setEntries(leaderboard)
+      } catch (err) {
+        console.error('Leaderboard error:', err)
+      } finally {
+        setLoading(false)
       }
-
-      const leaderboard: LeaderboardEntry[] = Array.from(byUser.entries())
-        .map(([user_id, data]) => ({
-          user_id,
-          full_name: data.full_name,
-          avatar_url: data.avatar_url,
-          rounds_played: data.scores.length,
-          best_score: Math.min(...data.scores),
-          avg_score: Math.round(data.scores.reduce((a, b) => a + b, 0) / data.scores.length),
-          best_diff: data.diffs.length ? Math.min(...data.diffs) : null,
-        }))
-        .sort((a, b) => (a.best_diff ?? 999) - (b.best_diff ?? 999))
-        .slice(0, 5)
-
-      setEntries(leaderboard)
-      setLoading(false)
     }
-    fetch()
+    loadLeaderboard()
   }, [])
 
   if (loading) {
