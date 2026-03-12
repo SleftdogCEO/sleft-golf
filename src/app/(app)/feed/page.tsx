@@ -14,7 +14,8 @@ import { HotCoursesWidget } from '@/components/hot-courses-widget'
 import { useUser } from '@/hooks/use-user'
 
 export default function FeedPage() {
-  const supabase = createClient()
+  const supabaseRef = useRef(createClient())
+  const supabase = supabaseRef.current
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { userId, profile, loading: authLoading } = useUser()
 

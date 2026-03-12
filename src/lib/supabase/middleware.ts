@@ -39,7 +39,8 @@ export async function updateSession(request: NextRequest) {
     pathname.startsWith('/forgot-password') ||
     pathname.startsWith('/reset-password') ||
     pathname.startsWith('/auth/') ||
-    pathname.startsWith('/api/')
+    pathname.startsWith('/api/') ||
+    pathname.startsWith('/feed')
 
   // If not authenticated and trying to access a protected route, redirect to login
   if (!user && !isPublicRoute) {
