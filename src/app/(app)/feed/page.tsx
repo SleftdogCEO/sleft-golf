@@ -361,10 +361,12 @@ export default function FeedPage() {
         </div>
 
         {/* Leaderboard + Hot Courses */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-          <LeaderboardWidget />
-          <HotCoursesWidget />
-        </div>
+        {!loading && posts.length > 0 && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+            <LeaderboardWidget posts={posts} />
+            <HotCoursesWidget posts={posts} />
+          </div>
+        )}
 
         {/* Posts List */}
         {loading ? (

@@ -1,8 +1,7 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
-import { createClient } from '@/lib/supabase/client'
 import { Flame, MapPin } from 'lucide-react'
+import type { Post } from '@/lib/types'
 
 type HotCourse = {
   course_id: string
@@ -10,109 +9,54 @@ type HotCourse = {
   parent_club: string | null
   city: string | null
   state: string | null
-  par: number | null
   round_count: number
   recent_players: string[]
 }
 
-export function HotCoursesWidget() {
-  const supabaseRef = useRef(createClient())
-  const [courses, setCourses] = useState<HotCourse[]>([])
-  const [loading, setLoading] = useState(true)
+export function HotCoursesWidget({ posts }: { posts: Post[] }) {
+  const byCourse = new Map<string, {
+    name: string
+    parent_club: string | null
+    city: string | null
+    state: string | null
+    count: number
+    players: Set<string>
+  }>()
 
-  useEffect(() => {
-    async function loadHotCourses() {
-      try {
-        const supabase = supabaseRef.current
+  for (const post of posts) {
+    if (!post.rounds?.courses) continue
+    const course = post.rounds.courses
+    const cid = course.id
 
-        const { data: rounds, error } = await supabase
-          .from('rounds')
-          .select('course_id, courses(id, name, parent_club, city, state, par), profiles(full_name)')
-          .eq('status', 'completed')
-          .not('course_id', 'is', null)
-          .order('created_at', { ascending: false })
-          .limit(200)
-
-        if (error || !rounds?.length) { setLoading(false); return }
-
-        const byCourse = new Map<string, {
-          name: string
-          parent_club: string | null
-          city: string | null
-          state: string | null
-          par: number | null
-          count: number
-          players: Set<string>
-        }>()
-
-        for (const r of rounds) {
-          const course = r.courses as unknown as { id: string; name: string; parent_club: string | null; city: string | null; state: string | null; par: number | null } | null
-          const profile = r.profiles as unknown as { full_name: string } | null
-          if (!course) continue
-
-          if (!byCourse.has(course.id)) {
-            byCourse.set(course.id, {
-              name: course.name,
-              parent_club: course.parent_club,
-              city: course.city,
-              state: course.state,
-              par: course.par,
-              count: 0,
-              players: new Set(),
-            })
-          }
-          const entry = byCourse.get(course.id)!
-          entry.count++
-          if (profile) entry.players.add(profile.full_name)
-        }
-
-        const hot: HotCourse[] = Array.from(byCourse.entries())
-          .map(([course_id, data]) => ({
-            course_id,
-            name: data.name,
-            parent_club: data.parent_club,
-            city: data.city,
-            state: data.state,
-            par: data.par,
-            round_count: data.count,
-            recent_players: Array.from(data.players).slice(0, 3),
-          }))
-          .sort((a, b) => b.round_count - a.round_count)
-          .slice(0, 5)
-
-        setCourses(hot)
-      } catch (err) {
-        console.error('Hot courses error:', err)
-      } finally {
-        setLoading(false)
-      }
+    if (!byCourse.has(cid)) {
+      byCourse.set(cid, {
+        name: course.name,
+        parent_club: course.parent_club,
+        city: course.city,
+        state: course.state,
+        count: 0,
+        players: new Set(),
+      })
     }
-    loadHotCourses()
-  }, [])
-
-  if (loading) {
-    return (
-      <div className="bg-dark-800 rounded-2xl border border-dark-700 p-5 animate-pulse">
-        <div className="h-5 w-32 bg-dark-700 rounded mb-4" />
-        <div className="space-y-3">
-          {[1, 2, 3].map(i => (
-            <div key={i} className="h-12 bg-dark-700 rounded-xl" />
-          ))}
-        </div>
-      </div>
-    )
+    const entry = byCourse.get(cid)!
+    entry.count++
+    if (post.profiles) entry.players.add(post.profiles.full_name)
   }
 
-  if (!courses.length) return null
+  const courses: HotCourse[] = Array.from(byCourse.entries())
+    .map(([course_id, data]) => ({
+      course_id,
+      name: data.name,
+      parent_club: data.parent_club,
+      city: data.city,
+      state: data.state,
+      round_count: data.count,
+      recent_players: Array.from(data.players).slice(0, 3),
+    }))
+    .sort((a, b) => b.round_count - a.round_count)
+    .slice(0, 5)
 
-  // Fire intensity based on rank
-  const fireColors = [
-    'text-orange-400',
-    'text-orange-400',
-    'text-yellow-400',
-    'text-yellow-500',
-    'text-gray-400',
-  ]
+  if (!courses.length) return null
 
   return (
     <div className="bg-dark-800 rounded-2xl border border-dark-700 overflow-hidden">
@@ -124,8 +68,8 @@ export function HotCoursesWidget() {
         {courses.map((course, i) => (
           <div key={course.course_id} className={`px-3 py-2.5 rounded-xl ${i === 0 ? 'bg-orange-900/15' : ''}`}>
             <div className="flex items-start gap-3">
-              <span className={`text-lg flex-shrink-0 ${fireColors[i]}`}>
-                {i === 0 ? '🔥' : i === 1 ? '🔥' : <MapPin className="w-4 h-4 mt-0.5" />}
+              <span className="text-lg flex-shrink-0">
+                {i < 2 ? '🔥' : <MapPin className="w-4 h-4 mt-0.5 text-gray-400" />}
               </span>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-white truncate">

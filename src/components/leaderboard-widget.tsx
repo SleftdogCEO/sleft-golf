@@ -1,8 +1,7 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
-import { createClient } from '@/lib/supabase/client'
 import { Trophy } from 'lucide-react'
+import type { Post } from '@/lib/types'
 
 type LeaderboardEntry = {
   user_id: string
@@ -10,94 +9,46 @@ type LeaderboardEntry = {
   avatar_url: string | null
   rounds_played: number
   best_score: number
-  avg_score: number
   best_diff: number | null
 }
 
-export function LeaderboardWidget() {
-  const supabaseRef = useRef(createClient())
-  const [entries, setEntries] = useState<LeaderboardEntry[]>([])
-  const [loading, setLoading] = useState(true)
+export function LeaderboardWidget({ posts }: { posts: Post[] }) {
+  const byUser = new Map<string, {
+    full_name: string
+    avatar_url: string | null
+    scores: number[]
+    diffs: number[]
+  }>()
 
-  useEffect(() => {
-    async function loadLeaderboard() {
-      try {
-        const supabase = supabaseRef.current
+  for (const post of posts) {
+    if (!post.rounds || post.rounds.score == null || !post.profiles) continue
+    const uid = post.user_id
 
-        const { data: rounds, error } = await supabase
-          .from('rounds')
-          .select('user_id, score, courses(par), profiles(full_name, avatar_url)')
-          .eq('status', 'completed')
-          .not('score', 'is', null)
-          .order('created_at', { ascending: false })
-          .limit(200)
-
-        if (error || !rounds?.length) { setLoading(false); return }
-
-        const byUser = new Map<string, {
-          full_name: string
-          avatar_url: string | null
-          scores: number[]
-          diffs: number[]
-        }>()
-
-        for (const r of rounds) {
-          const uid = r.user_id
-          const profile = r.profiles as unknown as { full_name: string; avatar_url: string | null } | null
-          if (!profile) continue
-
-          if (!byUser.has(uid)) {
-            byUser.set(uid, {
-              full_name: profile.full_name,
-              avatar_url: profile.avatar_url,
-              scores: [],
-              diffs: [],
-            })
-          }
-          const entry = byUser.get(uid)!
-          if (r.score != null) entry.scores.push(r.score)
-          const courseObj = r.courses as unknown as { par: number } | null
-          if (courseObj?.par && r.score != null) entry.diffs.push(r.score - courseObj.par)
-        }
-
-        const leaderboard: LeaderboardEntry[] = Array.from(byUser.entries())
-          .map(([user_id, data]) => ({
-            user_id,
-            full_name: data.full_name,
-            avatar_url: data.avatar_url,
-            rounds_played: data.scores.length,
-            best_score: Math.min(...data.scores),
-            avg_score: Math.round(data.scores.reduce((a, b) => a + b, 0) / data.scores.length),
-            best_diff: data.diffs.length ? Math.min(...data.diffs) : null,
-          }))
-          .sort((a, b) => (a.best_diff ?? 999) - (b.best_diff ?? 999))
-          .slice(0, 5)
-
-        setEntries(leaderboard)
-      } catch (err) {
-        console.error('Leaderboard error:', err)
-      } finally {
-        setLoading(false)
-      }
+    if (!byUser.has(uid)) {
+      byUser.set(uid, {
+        full_name: post.profiles.full_name,
+        avatar_url: post.profiles.avatar_url,
+        scores: [],
+        diffs: [],
+      })
     }
-    loadLeaderboard()
-  }, [])
-
-  if (loading) {
-    return (
-      <div className="bg-dark-800 rounded-2xl border border-dark-700 p-5 animate-pulse">
-        <div className="h-5 w-32 bg-dark-700 rounded mb-4" />
-        <div className="space-y-3">
-          {[1, 2, 3].map(i => (
-            <div key={i} className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-full bg-dark-700" />
-              <div className="h-4 w-24 bg-dark-700 rounded" />
-            </div>
-          ))}
-        </div>
-      </div>
-    )
+    const entry = byUser.get(uid)!
+    entry.scores.push(post.rounds.score)
+    const par = post.rounds.courses?.par
+    if (par) entry.diffs.push(post.rounds.score - par)
   }
+
+  const entries: LeaderboardEntry[] = Array.from(byUser.entries())
+    .map(([user_id, data]) => ({
+      user_id,
+      full_name: data.full_name,
+      avatar_url: data.avatar_url,
+      rounds_played: data.scores.length,
+      best_score: Math.min(...data.scores),
+      best_diff: data.diffs.length ? Math.min(...data.diffs) : null,
+    }))
+    .sort((a, b) => (a.best_diff ?? 999) - (b.best_diff ?? 999))
+    .slice(0, 5)
 
   if (!entries.length) return null
 
