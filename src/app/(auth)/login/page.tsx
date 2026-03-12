@@ -29,7 +29,7 @@ function LoginForm() {
     setError('')
     setLoading(true)
 
-    const { error: signInError } = await supabase.auth.signInWithPassword({
+    const { data, error: signInError } = await supabase.auth.signInWithPassword({
       email,
       password,
     })
@@ -38,6 +38,12 @@ function LoginForm() {
       setError(signInError.message)
       setLoading(false)
       return
+    }
+
+    // Wait for session cookie to be persisted by the browser client
+    if (data.session) {
+      await new Promise(resolve => setTimeout(resolve, 500))
+      await supabase.auth.getSession()
     }
 
     window.location.href = redirect

@@ -95,19 +95,38 @@ export default function Nav() {
 
             {/* User section (desktop) */}
             <div className="hidden md:flex items-center gap-3">
-              <div className="w-8 h-8 rounded-full bg-emerald-500 border-2 border-dark-600 flex items-center justify-center text-xs font-bold">
-                {getInitials()}
-              </div>
-              {displayName && (
-                <span className="text-sm text-gray-400">{displayName}</span>
+              {profile ? (
+                <>
+                  <div className="w-8 h-8 rounded-full bg-emerald-500 border-2 border-dark-600 flex items-center justify-center text-xs font-bold">
+                    {getInitials()}
+                  </div>
+                  {displayName && (
+                    <span className="text-sm text-gray-400">{displayName}</span>
+                  )}
+                  <button
+                    onClick={handleLogout}
+                    className="p-2 rounded-lg text-gray-500 hover:text-red-400 hover:bg-dark-800 transition-colors"
+                    title="Log out"
+                  >
+                    <LogOut size={16} />
+                  </button>
+                </>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <Link
+                    href="/login"
+                    className="px-3 py-2 rounded-lg text-sm font-medium text-gray-400 hover:text-white hover:bg-dark-800 transition-colors"
+                  >
+                    Log in
+                  </Link>
+                  <Link
+                    href="/signup"
+                    className="px-4 py-2 rounded-lg text-sm font-semibold bg-emerald-600 text-white hover:bg-emerald-500 transition-colors"
+                  >
+                    Sign up
+                  </Link>
+                </div>
               )}
-              <button
-                onClick={handleLogout}
-                className="p-2 rounded-lg text-gray-500 hover:text-red-400 hover:bg-dark-800 transition-colors"
-                title="Log out"
-              >
-                <LogOut size={16} />
-              </button>
             </div>
 
             {/* Mobile hamburger */}
@@ -134,14 +153,35 @@ export default function Nav() {
           <div className="fixed top-0 right-0 bottom-0 w-72 bg-dark-900 text-white shadow-2xl pt-20 px-4">
             {/* User info */}
             <div className="flex items-center gap-3 mb-6 pb-4 border-b border-dark-700">
-              <div className="w-10 h-10 rounded-full bg-emerald-500 border-2 border-emerald-400 flex items-center justify-center text-sm font-bold">
-                {getInitials()}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold truncate">
-                  {displayName || "Golfer"}
-                </p>
-              </div>
+              {profile ? (
+                <>
+                  <div className="w-10 h-10 rounded-full bg-emerald-500 border-2 border-emerald-400 flex items-center justify-center text-sm font-bold">
+                    {getInitials()}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold truncate">
+                      {displayName || "Golfer"}
+                    </p>
+                  </div>
+                </>
+              ) : (
+                <div className="flex flex-col gap-2 w-full">
+                  <Link
+                    href="/login"
+                    onClick={() => setMobileOpen(false)}
+                    className="w-full text-center px-4 py-2.5 rounded-lg text-sm font-medium text-gray-400 bg-dark-800 hover:text-white transition-colors"
+                  >
+                    Log in
+                  </Link>
+                  <Link
+                    href="/signup"
+                    onClick={() => setMobileOpen(false)}
+                    className="w-full text-center px-4 py-2.5 rounded-lg text-sm font-semibold bg-emerald-600 text-white hover:bg-emerald-500 transition-colors"
+                  >
+                    Sign up
+                  </Link>
+                </div>
+              )}
             </div>
 
             {/* Mobile links */}
@@ -167,13 +207,15 @@ export default function Nav() {
               })}
 
               {/* Logout */}
-              <button
-                onClick={() => { setMobileOpen(false); handleLogout(); }}
-                className="flex items-center gap-3 px-3 py-3 rounded-lg text-sm font-medium text-gray-400 hover:bg-dark-800 hover:text-red-400 transition-colors mt-4 border-t border-dark-700 pt-4"
-              >
-                <LogOut size={20} />
-                <span>Log Out</span>
-              </button>
+              {profile && (
+                <button
+                  onClick={() => { setMobileOpen(false); handleLogout(); }}
+                  className="flex items-center gap-3 px-3 py-3 rounded-lg text-sm font-medium text-gray-400 hover:bg-dark-800 hover:text-red-400 transition-colors mt-4 border-t border-dark-700 pt-4"
+                >
+                  <LogOut size={20} />
+                  <span>Log Out</span>
+                </button>
+              )}
             </div>
           </div>
         </div>

@@ -30,7 +30,7 @@ function SignupForm() {
     setError('')
     setLoading(true)
 
-    const { error: signUpError } = await supabase.auth.signUp({
+    const { data, error: signUpError } = await supabase.auth.signUp({
       email,
       password,
       options: {
@@ -44,6 +44,26 @@ function SignupForm() {
       return
     }
 
+    // If email confirmation is required and no session yet
+    if (data.user && !data.session) {
+      setError('Check your email to confirm your account, then log in.')
+      setLoading(false)
+      return
+    }
+
+    // Wait for session to be fully established
+    if (data.session) {
+      // Give the browser client time to persist the session cookie
+      await new Promise(resolve => setTimeout(resolve, 500))
+      // Verify session is actually set
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session) {
+        window.location.href = redirect
+        return
+      }
+    }
+
+    // Fallback: session should be set, redirect anyway
     window.location.href = redirect
   }
 
