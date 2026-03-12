@@ -1,11 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   Home,
-  Users,
   User,
   Menu,
   X,
@@ -27,8 +26,9 @@ export default function Nav() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
-  const { profile } = useUser();
-  const supabase = createClient();
+  const { profile, loading: authLoading } = useUser();
+  const supabaseRef = useRef(createClient());
+  const supabase = supabaseRef.current;
 
   const displayName = profile?.full_name || null;
 
@@ -95,7 +95,9 @@ export default function Nav() {
 
             {/* User section (desktop) */}
             <div className="hidden md:flex items-center gap-3">
-              {profile ? (
+              {authLoading ? (
+                <div className="w-8 h-8 rounded-full bg-dark-700 animate-pulse" />
+              ) : profile ? (
                 <>
                   <div className="w-8 h-8 rounded-full bg-emerald-500 border-2 border-dark-600 flex items-center justify-center text-xs font-bold">
                     {getInitials()}
