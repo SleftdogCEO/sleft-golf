@@ -31,7 +31,7 @@ export async function updateSession(request: NextRequest) {
 
   const { pathname } = request.nextUrl
 
-  // Public routes that don't require auth
+  // All app pages are publicly viewable (auth checked client-side for actions)
   const isPublicRoute =
     pathname === '/' ||
     pathname.startsWith('/login') ||
@@ -40,7 +40,11 @@ export async function updateSession(request: NextRequest) {
     pathname.startsWith('/reset-password') ||
     pathname.startsWith('/auth/') ||
     pathname.startsWith('/api/') ||
-    pathname.startsWith('/feed')
+    pathname.startsWith('/feed') ||
+    pathname.startsWith('/tee-times') ||
+    pathname.startsWith('/calendar') ||
+    pathname.startsWith('/propose') ||
+    pathname.startsWith('/profile')
 
   // If not authenticated and trying to access a protected route, redirect to login
   if (!user && !isPublicRoute) {
