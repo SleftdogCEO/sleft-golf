@@ -39,6 +39,24 @@ function SignupForm() {
     })
 
     if (signUpError) {
+      if (signUpError.message.toLowerCase().includes('already registered')) {
+        // Try logging in instead
+        const { data: loginData, error: loginError } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        })
+        if (loginError) {
+          setError('An account with this email already exists. Try logging in instead.')
+          setLoading(false)
+          return
+        }
+        if (loginData.session) {
+          await new Promise(resolve => setTimeout(resolve, 500))
+          await supabase.auth.getSession()
+          window.location.href = redirect
+          return
+        }
+      }
       setError(signUpError.message)
       setLoading(false)
       return
