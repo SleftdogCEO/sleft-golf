@@ -185,6 +185,19 @@ export default function CalendarPage() {
               const count = dayMeetups.length
               const isSelected = selectedDate ? isSameDay(day, selectedDate) : false
               const hasMyTime = dayMeetups.some(m => isUserInMeetup(m))
+              const hasOpenSpots = dayMeetups.some(m => getSpotsLeft(m) > 0)
+
+              // Glow intensity based on tee time count
+              const glowBg = count === 0 ? '' :
+                hasMyTime ? 'bg-emerald-500/15' :
+                count >= 3 ? 'bg-emerald-400/20' :
+                count >= 2 ? 'bg-emerald-400/12' :
+                'bg-emerald-400/8'
+
+              const glowShadow = count === 0 || past ? '' :
+                count >= 3 ? 'shadow-[inset_0_0_20px_rgba(52,211,153,0.25)]' :
+                count >= 2 ? 'shadow-[inset_0_0_14px_rgba(52,211,153,0.18)]' :
+                'shadow-[inset_0_0_10px_rgba(52,211,153,0.12)]'
 
               return (
                 <button
@@ -193,37 +206,42 @@ export default function CalendarPage() {
                   className={`relative aspect-square flex flex-col items-center justify-center gap-1 border-b border-r border-dark-700/50 transition-all
                     ${!inMonth ? 'opacity-25' : ''}
                     ${past ? 'opacity-40' : 'cursor-pointer'}
-                    ${isSelected ? 'ring-2 ring-inset ring-emerald-400 bg-dark-700/60' : 'hover:bg-dark-700/30'}
-                    ${hasMyTime && !isSelected ? 'bg-emerald-500/8' : ''}
+                    ${isSelected ? 'ring-2 ring-inset ring-emerald-400 bg-emerald-500/20' : count > 0 && inMonth ? `${glowBg} ${glowShadow} hover:brightness-125` : 'hover:bg-dark-700/30'}
                   `}
                 >
-                  <span className={`text-sm font-medium leading-none
-                    ${today ? 'text-emerald-400 font-bold' : inMonth ? 'text-gray-200' : 'text-gray-600'}
+                  {/* Animated pulse ring for dates with open spots */}
+                  {count > 0 && hasOpenSpots && inMonth && !past && !isSelected && (
+                    <div className="absolute inset-1.5 rounded-lg border border-emerald-400/30 animate-pulse pointer-events-none" />
+                  )}
+
+                  <span className={`text-sm font-medium leading-none relative z-10
+                    ${today && count === 0 ? 'text-emerald-400 font-bold' : ''}
+                    ${today && count > 0 ? 'text-white font-bold' : ''}
+                    ${!today && count > 0 && inMonth ? 'text-white font-semibold' : ''}
+                    ${!today && count === 0 && inMonth ? 'text-gray-200' : ''}
+                    ${!inMonth ? 'text-gray-600' : ''}
                   `}>
                     {format(day, 'd')}
                   </span>
 
-                  {/* Tee time dots */}
+                  {/* Tee time count badge */}
                   {count > 0 && inMonth && (
-                    <div className="flex gap-0.5">
-                      {Array.from({ length: Math.min(count, 4) }).map((_, j) => (
-                        <div
-                          key={j}
-                          className={`w-1.5 h-1.5 rounded-full ${
-                            dayMeetups[j] && isUserInMeetup(dayMeetups[j])
-                              ? 'bg-emerald-400 shadow-[0_0_4px_rgba(52,211,153,0.6)]'
-                              : 'bg-teal-500/70'
-                          }`}
-                        />
-                      ))}
-                      {count > 4 && (
-                        <span className="text-[8px] text-gray-500 leading-none">+{count - 4}</span>
-                      )}
-                    </div>
+                    <span className={`text-[10px] font-bold leading-none relative z-10 ${
+                      hasMyTime ? 'text-emerald-300' :
+                      count >= 3 ? 'text-emerald-300' :
+                      'text-emerald-400/80'
+                    }`}>
+                      {count} {count === 1 ? 'time' : 'times'}
+                    </span>
+                  )}
+
+                  {/* Your tee time indicator */}
+                  {hasMyTime && inMonth && (
+                    <div className="absolute top-1 right-1.5 w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.8)] z-10" />
                   )}
 
                   {today && (
-                    <div className="absolute inset-1 rounded-lg border border-emerald-500/30 pointer-events-none" />
+                    <div className="absolute inset-1 rounded-lg border border-emerald-500/40 pointer-events-none z-0" />
                   )}
                 </button>
               )
