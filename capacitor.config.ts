@@ -7,7 +7,7 @@ const config: CapacitorConfig = {
   webDir: 'out',
   server: {
     // Load from live Vercel deployment (server-side routes need a real server)
-    url: 'https://sleftgolf.vercel.app',
+    url: 'https://sleftgolf.vercel.app/feed',
     cleartext: false,
   },
   ios: {
