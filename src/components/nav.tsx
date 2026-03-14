@@ -17,7 +17,7 @@ import { createClient } from "@/lib/supabase/client";
 
 const navLinks = [
   { href: "/feed", label: "Feed", icon: Home },
-  { href: "/calendar", label: "Tee Sheet", icon: CalendarDays },
+  { href: "/calendar", label: "The Board", icon: CalendarDays },
   { href: "/propose", label: "Caddie", icon: Calendar },
   { href: "/profile", label: "Profile", icon: User },
 ];
@@ -26,11 +26,12 @@ export default function Nav() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
-  const { profile, loading: authLoading } = useUser();
+  const { user, profile, loading: authLoading } = useUser();
   const supabaseRef = useRef(createClient());
   const supabase = supabaseRef.current;
 
-  const displayName = profile?.full_name || null;
+  const isLoggedIn = !!(user || profile);
+  const displayName = profile?.full_name || user?.user_metadata?.full_name || user?.email?.split('@')[0] || null;
 
   const getInitials = () => {
     if (displayName) {
@@ -97,7 +98,7 @@ export default function Nav() {
             <div className="hidden md:flex items-center gap-3">
               {authLoading ? (
                 <div className="w-8 h-8 rounded-full bg-dark-700 animate-pulse" />
-              ) : profile ? (
+              ) : isLoggedIn ? (
                 <>
                   <div className="w-8 h-8 rounded-full bg-emerald-500 border-2 border-dark-600 flex items-center justify-center text-xs font-bold">
                     {getInitials()}
@@ -155,7 +156,7 @@ export default function Nav() {
           <div className="fixed top-0 right-0 bottom-0 w-72 bg-dark-900 text-white shadow-2xl pt-20 px-4">
             {/* User info */}
             <div className="flex items-center gap-3 mb-6 pb-4 border-b border-dark-700">
-              {profile ? (
+              {isLoggedIn ? (
                 <>
                   <div className="w-10 h-10 rounded-full bg-emerald-500 border-2 border-emerald-400 flex items-center justify-center text-sm font-bold">
                     {getInitials()}
@@ -207,7 +208,7 @@ export default function Nav() {
               })}
 
               {/* Logout */}
-              {profile && (
+              {isLoggedIn && (
                 <button
                   onClick={() => { setMobileOpen(false); handleLogout(); }}
                   className="flex items-center gap-3 px-3 py-3 rounded-lg text-sm font-medium text-gray-400 hover:bg-dark-800 hover:text-red-400 transition-colors mt-4 border-t border-dark-700 pt-4"
