@@ -218,6 +218,12 @@ export default function Nav() {
                 </button>
               )}
             </div>
+
+            {/* Legal links */}
+            <div className="absolute bottom-6 left-4 right-4 flex gap-4 text-xs text-gray-600">
+              <Link href="/privacy" onClick={() => setMobileOpen(false)}>Privacy</Link>
+              <Link href="/terms" onClick={() => setMobileOpen(false)}>Terms</Link>
+            </div>
           </div>
         </div>
       )}

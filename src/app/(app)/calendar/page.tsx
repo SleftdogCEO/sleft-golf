@@ -29,9 +29,39 @@ import {
   isPast,
   parseISO,
 } from 'date-fns'
-import type { Meetup } from '@/lib/types'
+import type { Meetup, Profile } from '@/lib/types'
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+
+function collectPlayers(meetups: Meetup[]): Profile[] {
+  const seen = new Set<string>()
+  const players: Profile[] = []
+  for (const m of meetups) {
+    if (m.profiles && !seen.has(m.profiles.id)) {
+      seen.add(m.profiles.id)
+      players.push(m.profiles)
+    }
+    for (const a of m.meetup_attendees || []) {
+      if (a.profiles && !seen.has(a.profiles.id)) {
+        seen.add(a.profiles.id)
+        players.push(a.profiles)
+      }
+    }
+  }
+  return players
+}
+
+function HandicapBadge({ handicap }: { handicap: number | null }) {
+  if (handicap == null) return null
+  const color = handicap <= 5 ? 'text-emerald-400 bg-emerald-900/40' :
+    handicap <= 15 ? 'text-yellow-400 bg-yellow-900/30' :
+    'text-orange-400 bg-orange-900/30'
+  return (
+    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${color}`}>
+      {handicap}
+    </span>
+  )
+}
 
 export default function CalendarPage() {
   const supabaseRef = useRef(createClient())
@@ -72,7 +102,6 @@ export default function CalendarPage() {
     setLoading(false)
   }
 
-  // Group meetups by date string
   const meetupsByDate = useMemo(() => {
     const map = new Map<string, Meetup[]>()
     for (const m of meetups) {
@@ -120,10 +149,26 @@ export default function CalendarPage() {
 
   const selectedMeetups = selectedDate ? getMeetupsForDate(selectedDate) : []
 
-  // Upcoming tee times (next ones from today)
+  // Upcoming — open spots first, then full
   const upcoming = useMemo(() => {
     const now = new Date()
-    return meetups.filter(m => parseISO(m.tee_time) >= now).slice(0, 8)
+    const future = meetups.filter(m => parseISO(m.tee_time) >= now)
+    const open = future.filter(m => getSpotsLeft(m) > 0)
+    const full = future.filter(m => getSpotsLeft(m) <= 0)
+    return [...open, ...full].slice(0, 10)
+  }, [meetups])
+
+  // Count of open tee times
+  const openCount = useMemo(() => {
+    const now = new Date()
+    return meetups.filter(m => parseISO(m.tee_time) >= now && getSpotsLeft(m) > 0).length
+  }, [meetups])
+
+  const totalOpenSpots = useMemo(() => {
+    const now = new Date()
+    return meetups
+      .filter(m => parseISO(m.tee_time) >= now)
+      .reduce((sum, m) => sum + Math.max(0, getSpotsLeft(m)), 0)
   }, [meetups])
 
   return (
@@ -131,8 +176,8 @@ export default function CalendarPage() {
       <div className="max-w-3xl mx-auto px-4 py-8">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-3xl font-bold text-white">Tee Sheet</h1>
-            <p className="text-gray-400 text-sm mt-1">Browse tee times. Tap a date to see who&apos;s playing.</p>
+            <h1 className="text-3xl font-bold text-white">The Board</h1>
+            <p className="text-gray-400 text-sm mt-1">See who&apos;s playing. Jump in.</p>
           </div>
           {userId && (
             <a
@@ -144,6 +189,25 @@ export default function CalendarPage() {
             </a>
           )}
         </div>
+
+        {/* Quick Stats Bar */}
+        {!loading && upcoming.length > 0 && (
+          <div className="flex items-center gap-3 mb-4 px-1">
+            {openCount > 0 && (
+              <span className="text-xs font-semibold text-amber-400 bg-amber-900/30 px-3 py-1.5 rounded-full">
+                {totalOpenSpots} open spot{totalOpenSpots !== 1 ? 's' : ''} across {openCount} tee time{openCount !== 1 ? 's' : ''}
+              </span>
+            )}
+            <div className="flex items-center gap-1.5 text-xs text-gray-500">
+              <div className="w-3 h-3 rounded-sm bg-amber-500/30 border border-amber-500/50" />
+              <span>Needs players</span>
+            </div>
+            <div className="flex items-center gap-1.5 text-xs text-gray-500">
+              <div className="w-3 h-3 rounded-sm bg-dark-600 border border-dark-500" />
+              <span>Full</span>
+            </div>
+          </div>
+        )}
 
         {/* Calendar Card */}
         <div className="bg-dark-800 rounded-2xl border border-dark-700 overflow-hidden mb-6">
@@ -185,54 +249,82 @@ export default function CalendarPage() {
               const count = dayMeetups.length
               const isSelected = selectedDate ? isSameDay(day, selectedDate) : false
               const hasMyTime = dayMeetups.some(m => isUserInMeetup(m))
-              const hasOpenSpots = dayMeetups.some(m => getSpotsLeft(m) > 0)
+              const openMeetups = dayMeetups.filter(m => getSpotsLeft(m) > 0)
+              const hasOpenSpots = openMeetups.length > 0
+              const allFull = count > 0 && !hasOpenSpots
+              const dayPlayers = collectPlayers(dayMeetups)
 
-              // Glow intensity based on tee time count
+              // Color based on open vs full
+              // Amber/gold glow = needs players (actionable!)
+              // Muted gray-green = all full (informational)
               const glowBg = count === 0 ? '' :
                 hasMyTime ? 'bg-emerald-500/15' :
-                count >= 3 ? 'bg-emerald-400/20' :
-                count >= 2 ? 'bg-emerald-400/12' :
-                'bg-emerald-400/8'
+                hasOpenSpots ? (
+                  openMeetups.length >= 3 ? 'bg-amber-400/20' :
+                  openMeetups.length >= 2 ? 'bg-amber-400/15' :
+                  'bg-amber-400/10'
+                ) :
+                'bg-dark-700/30'
 
               const glowShadow = count === 0 || past ? '' :
-                count >= 3 ? 'shadow-[inset_0_0_20px_rgba(52,211,153,0.25)]' :
-                count >= 2 ? 'shadow-[inset_0_0_14px_rgba(52,211,153,0.18)]' :
-                'shadow-[inset_0_0_10px_rgba(52,211,153,0.12)]'
+                hasOpenSpots ? (
+                  openMeetups.length >= 3 ? 'shadow-[inset_0_0_20px_rgba(251,191,36,0.2)]' :
+                  openMeetups.length >= 2 ? 'shadow-[inset_0_0_14px_rgba(251,191,36,0.15)]' :
+                  'shadow-[inset_0_0_10px_rgba(251,191,36,0.1)]'
+                ) :
+                ''
 
               return (
                 <button
                   key={i}
                   onClick={() => setSelectedDate(prev => prev && isSameDay(prev, day) ? null : day)}
-                  className={`relative aspect-square flex flex-col items-center justify-center gap-1 border-b border-r border-dark-700/50 transition-all
+                  className={`relative aspect-square flex flex-col items-center justify-center gap-0.5 border-b border-r border-dark-700/50 transition-all
                     ${!inMonth ? 'opacity-25' : ''}
                     ${past ? 'opacity-40' : 'cursor-pointer'}
                     ${isSelected ? 'ring-2 ring-inset ring-emerald-400 bg-emerald-500/20' : count > 0 && inMonth ? `${glowBg} ${glowShadow} hover:brightness-125` : 'hover:bg-dark-700/30'}
                   `}
                 >
-                  {/* Animated pulse ring for dates with open spots */}
-                  {count > 0 && hasOpenSpots && inMonth && !past && !isSelected && (
-                    <div className="absolute inset-1.5 rounded-lg border border-emerald-400/30 animate-pulse pointer-events-none" />
+                  {/* Pulse for open spots — amber to draw attention */}
+                  {hasOpenSpots && inMonth && !past && !isSelected && (
+                    <div className="absolute inset-1.5 rounded-lg border border-amber-400/40 animate-pulse pointer-events-none" />
                   )}
 
                   <span className={`text-sm font-medium leading-none relative z-10
                     ${today && count === 0 ? 'text-emerald-400 font-bold' : ''}
                     ${today && count > 0 ? 'text-white font-bold' : ''}
-                    ${!today && count > 0 && inMonth ? 'text-white font-semibold' : ''}
+                    ${!today && hasOpenSpots && inMonth ? 'text-amber-200 font-semibold' : ''}
+                    ${!today && allFull && inMonth ? 'text-gray-400 font-medium' : ''}
                     ${!today && count === 0 && inMonth ? 'text-gray-200' : ''}
                     ${!inMonth ? 'text-gray-600' : ''}
                   `}>
                     {format(day, 'd')}
                   </span>
 
-                  {/* Tee time count badge */}
+                  {/* Mini player avatars */}
                   {count > 0 && inMonth && (
-                    <span className={`text-[10px] font-bold leading-none relative z-10 ${
-                      hasMyTime ? 'text-emerald-300' :
-                      count >= 3 ? 'text-emerald-300' :
-                      'text-emerald-400/80'
-                    }`}>
-                      {count} {count === 1 ? 'time' : 'times'}
-                    </span>
+                    <div className="flex -space-x-1 relative z-10">
+                      {dayPlayers.slice(0, 3).map(p => (
+                        <div
+                          key={p.id}
+                          className={`w-4 h-4 rounded-full border flex items-center justify-center overflow-hidden ${
+                            hasOpenSpots ? 'border-amber-700/50 bg-amber-900/30' : 'border-dark-600 bg-dark-700'
+                          }`}
+                        >
+                          {p.avatar_url ? (
+                            <img src={p.avatar_url} alt="" className="w-full h-full object-cover" />
+                          ) : (
+                            <span className={`text-[7px] font-bold ${hasOpenSpots ? 'text-amber-300' : 'text-gray-500'}`}>
+                              {p.full_name?.charAt(0)?.toUpperCase() || '?'}
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                      {dayPlayers.length > 3 && (
+                        <div className="w-4 h-4 rounded-full border border-dark-600 bg-dark-700 flex items-center justify-center">
+                          <span className="text-gray-400 text-[6px] font-bold">+{dayPlayers.length - 3}</span>
+                        </div>
+                      )}
+                    </div>
                   )}
 
                   {/* Your tee time indicator */}
@@ -271,48 +363,82 @@ export default function CalendarPage() {
               </button>
             </div>
 
-            {selectedMeetups.length > 0 ? (
-              <div className="divide-y divide-dark-700">
-                {selectedMeetups.map(meetup => (
-                  <MeetupRow
-                    key={meetup.id}
-                    meetup={meetup}
-                    userId={userId}
-                    joining={joining === meetup.id}
-                    isUserIn={isUserInMeetup(meetup)}
-                    spotsLeft={getSpotsLeft(meetup)}
-                    playerCount={getPlayerCount(meetup)}
-                    onJoin={() => joinMeetup(meetup.id)}
-                    onLeave={() => leaveMeetup(meetup.id)}
-                  />
-                ))}
-              </div>
-            ) : (
-              <div className="px-5 py-10 text-center">
-                <div className="w-12 h-12 bg-dark-700 rounded-full flex items-center justify-center mx-auto mb-3">
-                  <Clock className="w-6 h-6 text-gray-500" />
+            {(() => {
+              const open = selectedMeetups.filter(m => getSpotsLeft(m) > 0)
+              const full = selectedMeetups.filter(m => getSpotsLeft(m) <= 0)
+              return selectedMeetups.length > 0 ? (
+                <div>
+                  {/* Open tee times first */}
+                  {open.length > 0 && (
+                    <div className="divide-y divide-dark-700">
+                      {open.map(meetup => (
+                        <MeetupRow
+                          key={meetup.id}
+                          meetup={meetup}
+                          userId={userId}
+                          joining={joining === meetup.id}
+                          isUserIn={isUserInMeetup(meetup)}
+                          spotsLeft={getSpotsLeft(meetup)}
+                          playerCount={getPlayerCount(meetup)}
+                          onJoin={() => joinMeetup(meetup.id)}
+                          onLeave={() => leaveMeetup(meetup.id)}
+                        />
+                      ))}
+                    </div>
+                  )}
+                  {/* Full tee times — collapsed section */}
+                  {full.length > 0 && (
+                    <div className={open.length > 0 ? 'border-t border-dark-600' : ''}>
+                      <div className="px-5 py-2.5 bg-dark-850">
+                        <p className="text-[11px] font-medium text-gray-500 uppercase tracking-wider">
+                          Already full ({full.length})
+                        </p>
+                      </div>
+                      <div className="divide-y divide-dark-700 opacity-60">
+                        {full.map(meetup => (
+                          <MeetupRow
+                            key={meetup.id}
+                            meetup={meetup}
+                            userId={userId}
+                            joining={joining === meetup.id}
+                            isUserIn={isUserInMeetup(meetup)}
+                            spotsLeft={getSpotsLeft(meetup)}
+                            playerCount={getPlayerCount(meetup)}
+                            onJoin={() => joinMeetup(meetup.id)}
+                            onLeave={() => leaveMeetup(meetup.id)}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
-                <p className="text-sm text-gray-500 mb-3">No one has posted a tee time for this day.</p>
-                {userId && !isPast(selectedDate) && (
-                  <a
-                    href="/tee-times"
-                    className="inline-flex items-center gap-2 text-sm font-medium text-emerald-400 hover:text-emerald-300"
-                  >
-                    <Plus className="w-4 h-4" />
-                    Be the first — post a tee time
-                  </a>
-                )}
-              </div>
-            )}
+              ) : (
+                <div className="px-5 py-10 text-center">
+                  <div className="w-12 h-12 bg-dark-700 rounded-full flex items-center justify-center mx-auto mb-3">
+                    <Clock className="w-6 h-6 text-gray-500" />
+                  </div>
+                  <p className="text-sm text-gray-500 mb-3">No one has posted a tee time for this day.</p>
+                  {userId && !isPast(selectedDate) && (
+                    <a
+                      href="/tee-times"
+                      className="inline-flex items-center gap-2 text-sm font-medium text-emerald-400 hover:text-emerald-300"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Be the first — post a tee time
+                    </a>
+                  )}
+                </div>
+              )
+            })()}
           </div>
         )}
 
-        {/* Upcoming Tee Times */}
+        {/* Upcoming Tee Times — open first, full at bottom */}
         {!selectedDate && (
           <div className="bg-dark-800 rounded-2xl border border-dark-700 overflow-hidden">
             <div className="px-5 py-4 border-b border-dark-700">
               <h3 className="text-base font-semibold text-white">Upcoming Tee Times</h3>
-              <p className="text-xs text-gray-500 mt-0.5">Jump into a round</p>
+              <p className="text-xs text-gray-500 mt-0.5">Open times first — jump into a round</p>
             </div>
 
             {loading ? (
@@ -322,21 +448,52 @@ export default function CalendarPage() {
                 ))}
               </div>
             ) : upcoming.length > 0 ? (
-              <div className="divide-y divide-dark-700">
-                {upcoming.map(meetup => (
-                  <MeetupRow
-                    key={meetup.id}
-                    meetup={meetup}
-                    userId={userId}
-                    joining={joining === meetup.id}
-                    isUserIn={isUserInMeetup(meetup)}
-                    spotsLeft={getSpotsLeft(meetup)}
-                    playerCount={getPlayerCount(meetup)}
-                    onJoin={() => joinMeetup(meetup.id)}
-                    onLeave={() => leaveMeetup(meetup.id)}
-                    showDate
-                  />
-                ))}
+              <div>
+                {/* Open tee times */}
+                {upcoming.filter(m => getSpotsLeft(m) > 0).length > 0 && (
+                  <div className="divide-y divide-dark-700">
+                    {upcoming.filter(m => getSpotsLeft(m) > 0).map(meetup => (
+                      <MeetupRow
+                        key={meetup.id}
+                        meetup={meetup}
+                        userId={userId}
+                        joining={joining === meetup.id}
+                        isUserIn={isUserInMeetup(meetup)}
+                        spotsLeft={getSpotsLeft(meetup)}
+                        playerCount={getPlayerCount(meetup)}
+                        onJoin={() => joinMeetup(meetup.id)}
+                        onLeave={() => leaveMeetup(meetup.id)}
+                        showDate
+                      />
+                    ))}
+                  </div>
+                )}
+                {/* Full tee times — muted */}
+                {upcoming.filter(m => getSpotsLeft(m) <= 0).length > 0 && (
+                  <div className="border-t border-dark-600">
+                    <div className="px-5 py-2.5">
+                      <p className="text-[11px] font-medium text-gray-500 uppercase tracking-wider">
+                        Full groups — see who&apos;s playing
+                      </p>
+                    </div>
+                    <div className="divide-y divide-dark-700 opacity-50">
+                      {upcoming.filter(m => getSpotsLeft(m) <= 0).map(meetup => (
+                        <MeetupRow
+                          key={meetup.id}
+                          meetup={meetup}
+                          userId={userId}
+                          joining={joining === meetup.id}
+                          isUserIn={isUserInMeetup(meetup)}
+                          spotsLeft={getSpotsLeft(meetup)}
+                          playerCount={getPlayerCount(meetup)}
+                          onJoin={() => joinMeetup(meetup.id)}
+                          onLeave={() => leaveMeetup(meetup.id)}
+                          showDate
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="px-5 py-10 text-center">
@@ -391,9 +548,16 @@ function MeetupRow({
   const organizer = meetup.profiles
   const isOrganizer = userId === meetup.organizer_id
   const full = spotsLeft <= 0
+  const isOpen = spotsLeft > 0
+
+  const allPlayers: Profile[] = []
+  if (organizer) allPlayers.push(organizer)
+  for (const a of meetup.meetup_attendees || []) {
+    if (a.profiles) allPlayers.push(a.profiles)
+  }
 
   return (
-    <div className={`px-5 py-4 ${isUserIn ? 'bg-emerald-500/5' : ''}`}>
+    <div className={`px-5 py-4 ${isUserIn ? 'bg-emerald-500/5' : isOpen ? 'bg-amber-500/[0.03]' : ''}`}>
       <div className="flex items-start gap-4">
         {/* Time block */}
         <div className="flex-shrink-0 text-center w-14">
@@ -410,7 +574,14 @@ function MeetupRow({
 
         {/* Details */}
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-white truncate">{meetup.title}</p>
+          <div className="flex items-center gap-2">
+            <p className="text-sm font-semibold text-white truncate">{meetup.title}</p>
+            {isOpen && (
+              <span className="flex-shrink-0 text-[10px] font-bold text-amber-400 bg-amber-900/30 px-2 py-0.5 rounded-full">
+                {spotsLeft} open
+              </span>
+            )}
+          </div>
           {course && (
             <div className="flex items-center gap-1.5 mt-1 text-xs text-gray-400">
               <MapPin className="w-3 h-3 flex-shrink-0" />
@@ -420,49 +591,43 @@ function MeetupRow({
               </span>
             </div>
           )}
-          <div className="flex items-center gap-3 mt-2">
-            {/* Player avatars */}
-            <div className="flex -space-x-2">
-              {/* Organizer */}
+
+          {/* Player list with handicaps */}
+          <div className="flex flex-wrap items-center gap-1.5 mt-2.5">
+            {allPlayers.map((player, idx) => (
               <div
-                className="w-6 h-6 rounded-full border-2 border-dark-800 bg-emerald-900/50 flex items-center justify-center overflow-hidden"
-                title={organizer?.full_name || 'Organizer'}
+                key={player.id}
+                className="flex items-center gap-1.5 bg-dark-700/50 rounded-full pl-1 pr-2 py-0.5"
               >
-                {organizer?.avatar_url ? (
-                  <img src={organizer.avatar_url} alt="" className="w-full h-full object-cover" />
-                ) : (
-                  <span className="text-emerald-400 text-[9px] font-bold">
-                    {organizer?.full_name?.charAt(0)?.toUpperCase() || '?'}
-                  </span>
-                )}
-              </div>
-              {/* Attendees */}
-              {meetup.meetup_attendees?.slice(0, 4).map(att => (
                 <div
-                  key={att.id}
-                  className="w-6 h-6 rounded-full border-2 border-dark-800 bg-dark-600 flex items-center justify-center overflow-hidden"
-                  title={att.profiles?.full_name || 'Player'}
+                  className={`w-5 h-5 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0 ${
+                    idx === 0 ? 'bg-emerald-900/50 border border-emerald-700/50' : 'bg-dark-600 border border-dark-500'
+                  }`}
                 >
-                  {att.profiles?.avatar_url ? (
-                    <img src={att.profiles.avatar_url} alt="" className="w-full h-full object-cover" />
+                  {player.avatar_url ? (
+                    <img src={player.avatar_url} alt="" className="w-full h-full object-cover" />
                   ) : (
-                    <span className="text-gray-400 text-[9px] font-bold">
-                      {att.profiles?.full_name?.charAt(0)?.toUpperCase() || '?'}
+                    <span className={`text-[8px] font-bold ${idx === 0 ? 'text-emerald-400' : 'text-gray-400'}`}>
+                      {player.full_name?.charAt(0)?.toUpperCase() || '?'}
                     </span>
                   )}
                 </div>
-              ))}
-            </div>
-            <span className="text-xs text-gray-500">
-              {playerCount}/{meetup.max_players} players
-            </span>
-            {spotsLeft > 0 && !isUserIn && (
-              <span className="text-xs font-medium text-emerald-400">
-                {spotsLeft} spot{spotsLeft !== 1 ? 's' : ''} open
-              </span>
-            )}
-            {full && !isUserIn && (
-              <span className="text-xs font-medium text-gray-500">Full</span>
+                <span className="text-[11px] font-medium text-gray-300 truncate max-w-[60px]">
+                  {player.full_name?.split(' ')[0]}
+                </span>
+                <HandicapBadge handicap={player.handicap} />
+              </div>
+            ))}
+
+            {/* Empty spots — dashed circles */}
+            {isOpen && (
+              <div className="flex items-center gap-1">
+                {Array.from({ length: Math.min(spotsLeft, 3) }).map((_, i) => (
+                  <div key={i} className="w-5 h-5 rounded-full border border-dashed border-amber-600/40 flex items-center justify-center">
+                    <span className="text-[8px] text-amber-500/50">?</span>
+                  </div>
+                ))}
+              </div>
             )}
           </div>
         </div>
@@ -488,11 +653,11 @@ function MeetupRow({
               Leave
             </button>
           )}
-          {userId && !isUserIn && !full && (
+          {userId && !isUserIn && isOpen && (
             <button
               onClick={onJoin}
               disabled={joining}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-emerald-400 bg-emerald-900/20 hover:bg-emerald-900/30 border border-emerald-800/30 transition-colors disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-amber-300 bg-amber-900/30 hover:bg-amber-900/40 border border-amber-700/40 transition-colors disabled:opacity-50"
             >
               <UserPlus className="w-3.5 h-3.5" />
               Join
@@ -503,12 +668,13 @@ function MeetupRow({
               Yours
             </span>
           )}
-          {!userId && (
+          {!userId && isOpen && (
             <a
               href="/signup"
-              className="text-xs font-medium text-emerald-400 hover:text-emerald-300"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-amber-300 bg-amber-900/30 hover:bg-amber-900/40 border border-amber-700/40 transition-colors"
             >
-              Sign up to join
+              <UserPlus className="w-3.5 h-3.5" />
+              Join
             </a>
           )}
         </div>
