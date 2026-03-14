@@ -58,16 +58,13 @@ export default function FeedPage() {
   async function fetchPosts() {
     setLoading(true)
     try {
-      const { data, error } = await supabase
-        .from('posts')
-        .select('*, profiles(*), rounds(*, courses(*))')
-        .order('created_at', { ascending: false })
-        .limit(50)
-
-      if (error) {
-        console.error('Error fetching posts:', error)
-        setPostError(`Feed error: ${error.message}`)
+      // Fetch via same-domain API route to avoid ad-blocker issues
+      const res = await fetch('/api/posts')
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({ error: res.statusText }))
+        setPostError(`Feed error: ${body.error || res.statusText}`)
       } else {
+        const data = await res.json()
         setPosts(data || [])
       }
     } catch (err: unknown) {
