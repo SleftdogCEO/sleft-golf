@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist } from "next/font/google";
 import { CapacitorBridge } from "@/components/capacitor-bridge";
+import { OfflineScreen } from "@/components/offline-screen";
 import "./globals.css";
 
 const geist = Geist({
@@ -36,6 +37,7 @@ export default function RootLayout({
     <html lang="en">
       <body className={`${geist.variable} font-sans antialiased`}>
         <CapacitorBridge />
+        <OfflineScreen />
         {children}
       </body>
     </html>

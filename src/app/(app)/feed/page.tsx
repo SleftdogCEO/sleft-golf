@@ -13,6 +13,7 @@ import { LeaderboardWidget } from '@/components/leaderboard-widget'
 import { HotCoursesWidget } from '@/components/hot-courses-widget'
 import { PostComments } from '@/components/post-comments'
 import { useUser } from '@/hooks/use-user'
+import { hapticLight, hapticMedium } from '@/lib/haptics'
 
 export default function FeedPage() {
   const supabaseRef = useRef(createClient())
@@ -165,6 +166,7 @@ export default function FeedPage() {
 
   async function addReaction(postId: string, emoji: string) {
     if (!userId) { window.location.href = '/login?redirect=/feed'; return }
+    hapticMedium()
     setPostReactions(prev => {
       const next = { ...prev }
       if (!next[postId]) next[postId] = {}
@@ -205,6 +207,7 @@ export default function FeedPage() {
 
   async function toggleLike(postId: string) {
     if (!userId) { window.location.href = '/login?redirect=/feed'; return }
+    hapticLight()
 
     const isLiked = likedPosts.has(postId)
 

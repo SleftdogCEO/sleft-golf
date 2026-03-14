@@ -83,7 +83,7 @@ export function QuickRoundPost({ onPostCreated }: QuickRoundPostProps) {
   function handleButtonClick() {
     if (!authChecked) return
     if (!userId) {
-      window.location.href = '/signup'
+      window.location.href = '/login?redirect=/feed'
       return
     }
     setExpanded(true)

@@ -38,24 +38,17 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: system-ui, -apple-system, sans-serif;
-  /* Safe area insets for iOS notch/home bar */
-  padding-top: env(safe-area-inset-top);
   padding-bottom: env(safe-area-inset-bottom);
   padding-left: env(safe-area-inset-left);
   padding-right: env(safe-area-inset-right);
   -webkit-touch-callout: none;
   -webkit-tap-highlight-color: transparent;
   overscroll-behavior-y: none;
-}
-
-/* Prevent rubber-band scroll on iOS */
-html {
-  overflow: hidden;
-  height: 100%;
-}
-
-body {
   overflow-y: auto;
   height: 100%;
   -webkit-overflow-scrolling: touch;
+}
+
+html {
+  height: 100%;
 }

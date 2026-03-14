@@ -63,7 +63,7 @@ export default function Nav() {
   return (
     <>
       {/* Desktop nav */}
-      <nav className="fixed top-0 left-0 right-0 z-50 bg-dark-900 border-b border-dark-700 text-white shadow-lg">
+      <nav className="fixed top-0 left-0 right-0 z-50 bg-dark-900 border-b border-dark-700 text-white shadow-lg" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             {/* Logo */}
@@ -153,7 +153,7 @@ export default function Nav() {
           />
 
           {/* Slide-out panel */}
-          <div className="fixed top-0 right-0 bottom-0 w-72 bg-dark-900 text-white shadow-2xl pt-20 px-4">
+          <div className="fixed top-0 right-0 bottom-0 w-72 bg-dark-900 text-white shadow-2xl px-4" style={{ paddingTop: 'calc(5rem + env(safe-area-inset-top, 0px))' }}>
             {/* User info */}
             <div className="flex items-center gap-3 mb-6 pb-4 border-b border-dark-700">
               {isLoggedIn ? (
