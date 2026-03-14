@@ -1,8 +1,7 @@
 'use client'
 
-import { useState, Suspense } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
-import Link from 'next/link'
+import { useState, useRef, Suspense } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
 export default function SignupPage() {
@@ -14,10 +13,10 @@ export default function SignupPage() {
 }
 
 function SignupForm() {
-  const router = useRouter()
   const searchParams = useSearchParams()
   const redirect = searchParams.get('redirect') || '/feed'
-  const supabase = createClient()
+  const supabaseRef = useRef(createClient())
+  const supabase = supabaseRef.current
 
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
@@ -30,59 +29,67 @@ function SignupForm() {
     setError('')
     setLoading(true)
 
-    const { data, error: signUpError } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: { full_name: fullName },
-      },
-    })
+    try {
+      // Use server-side API route to avoid proxy issues with auth
+      const res = await fetch('/api/auth/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password, fullName }),
+      })
 
-    if (signUpError) {
-      if (signUpError.message.toLowerCase().includes('already registered')) {
+      const result = await res.json()
+
+      if (result.alreadyRegistered) {
         // Try logging in instead
-        const { data: loginData, error: loginError } = await supabase.auth.signInWithPassword({
-          email,
-          password,
+        const loginRes = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password }),
         })
-        if (loginError) {
+        const loginResult = await loginRes.json()
+
+        if (!loginRes.ok || loginResult.error) {
           setError('An account with this email already exists. Try logging in instead.')
           setLoading(false)
           return
         }
-        if (loginData.session) {
-          await new Promise(resolve => setTimeout(resolve, 500))
-          await supabase.auth.getSession()
+        if (loginResult.session) {
+          await supabase.auth.setSession({
+            access_token: loginResult.session.access_token,
+            refresh_token: loginResult.session.refresh_token,
+          })
           window.location.href = redirect
           return
         }
       }
-      setError(signUpError.message)
-      setLoading(false)
-      return
-    }
 
-    // If email confirmation is required and no session yet
-    if (data.user && !data.session) {
-      setError('Check your email to confirm your account, then log in.')
-      setLoading(false)
-      return
-    }
+      if (!res.ok || result.error) {
+        setError(result.error || 'Signup failed. Please try again.')
+        setLoading(false)
+        return
+      }
 
-    // Wait for session to be fully established
-    if (data.session) {
-      // Give the browser client time to persist the session cookie
-      await new Promise(resolve => setTimeout(resolve, 500))
-      // Verify session is actually set
-      const { data: { session } } = await supabase.auth.getSession()
-      if (session) {
+      // If email confirmation is required and no session yet
+      if (result.user && !result.session) {
+        setError('Check your email to confirm your account, then log in.')
+        setLoading(false)
+        return
+      }
+
+      if (result.session) {
+        await supabase.auth.setSession({
+          access_token: result.session.access_token,
+          refresh_token: result.session.refresh_token,
+        })
         window.location.href = redirect
         return
       }
-    }
 
-    // Fallback: session should be set, redirect anyway
-    window.location.href = redirect
+      window.location.href = redirect
+    } catch {
+      setError('Something went wrong. Please try again.')
+      setLoading(false)
+    }
   }
 
   return (
@@ -148,9 +155,9 @@ function SignupForm() {
 
       <p className="text-center text-gray-400 text-sm mt-6">
         Already have an account?{' '}
-        <Link href={`/login?redirect=${encodeURIComponent(redirect)}`} className="text-emerald-400 hover:text-emerald-300 font-medium">
+        <a href={`/login?redirect=${encodeURIComponent(redirect)}`} className="text-emerald-400 hover:text-emerald-300 font-medium">
           Log in
-        </Link>
+        </a>
       </p>
     </div>
   )

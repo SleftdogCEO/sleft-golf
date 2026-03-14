@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, Suspense } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useState, useRef, Suspense } from 'react'
+import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 
@@ -14,10 +14,10 @@ export default function LoginPage() {
 }
 
 function LoginForm() {
-  const router = useRouter()
   const searchParams = useSearchParams()
   const redirect = searchParams.get('redirect') || '/feed'
-  const supabase = createClient()
+  const supabaseRef = useRef(createClient())
+  const supabase = supabaseRef.current
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -29,24 +29,38 @@ function LoginForm() {
     setError('')
     setLoading(true)
 
-    const { data, error: signInError } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    })
+    try {
+      // Use server-side API route to avoid proxy issues with auth
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      })
 
-    if (signInError) {
-      setError(signInError.message)
+      const result = await res.json()
+
+      if (!res.ok || result.error) {
+        setError(result.error || 'Login failed. Please try again.')
+        setLoading(false)
+        return
+      }
+
+      if (result.session) {
+        // Set the session in the client-side Supabase instance (stores in localStorage)
+        await supabase.auth.setSession({
+          access_token: result.session.access_token,
+          refresh_token: result.session.refresh_token,
+        })
+        window.location.href = redirect
+        return
+      }
+
+      setError('Login succeeded but no session was created. Please try again.')
       setLoading(false)
-      return
+    } catch {
+      setError('Something went wrong. Please try again.')
+      setLoading(false)
     }
-
-    // Wait for session cookie to be persisted by the browser client
-    if (data.session) {
-      await new Promise(resolve => setTimeout(resolve, 500))
-      await supabase.auth.getSession()
-    }
-
-    window.location.href = redirect
   }
 
   return (
@@ -104,9 +118,9 @@ function LoginForm() {
 
       <p className="text-center text-gray-400 text-sm mt-6">
         Don&apos;t have an account?{' '}
-        <Link href={`/signup?redirect=${encodeURIComponent(redirect)}`} className="text-emerald-400 hover:text-emerald-300 font-medium">
+        <a href={`/signup?redirect=${encodeURIComponent(redirect)}`} className="text-emerald-400 hover:text-emerald-300 font-medium">
           Sign up
-        </Link>
+        </a>
       </p>
     </div>
   )
