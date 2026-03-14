@@ -1,7 +1,16 @@
 import type { NextConfig } from "next";
 
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+
 const nextConfig: NextConfig = {
-  /* config options here */
+  async rewrites() {
+    return [
+      {
+        source: '/supabase/:path*',
+        destination: `${supabaseUrl}/:path*`,
+      },
+    ];
+  },
 };
 
 export default nextConfig;

@@ -164,7 +164,7 @@ export default function FeedPage() {
   }
 
   async function addReaction(postId: string, emoji: string) {
-    if (!user) { window.location.href = '/login?redirect=/feed'; return }
+    if (!userId) { window.location.href = '/login?redirect=/feed'; return }
     setPostReactions(prev => {
       const next = { ...prev }
       if (!next[postId]) next[postId] = {}
@@ -173,13 +173,13 @@ export default function FeedPage() {
       return next
     })
     await supabase.from('post_reactions').upsert(
-      { post_id: postId, user_id: user.id, emoji },
+      { post_id: postId, user_id: userId, emoji },
       { onConflict: 'post_id,user_id,emoji' }
     )
   }
 
   async function removeReaction(postId: string, emoji: string) {
-    if (!user) { window.location.href = '/login?redirect=/feed'; return }
+    if (!userId) { window.location.href = '/login?redirect=/feed'; return }
     setPostReactions(prev => {
       const next = { ...prev }
       if (next[postId]?.[emoji]) {
@@ -189,7 +189,7 @@ export default function FeedPage() {
     })
     await supabase.from('post_reactions').delete()
       .eq('post_id', postId)
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .eq('emoji', emoji)
   }
 
@@ -204,7 +204,7 @@ export default function FeedPage() {
   }
 
   async function toggleLike(postId: string) {
-    if (!user) { window.location.href = '/login?redirect=/feed'; return }
+    if (!userId) { window.location.href = '/login?redirect=/feed'; return }
 
     const isLiked = likedPosts.has(postId)
 
@@ -229,12 +229,12 @@ export default function FeedPage() {
       await supabase
         .from('likes')
         .delete()
-        .eq('user_id', user.id)
+        .eq('user_id', userId)
         .eq('post_id', postId)
     } else {
       await supabase
         .from('likes')
-        .insert({ user_id: user.id, post_id: postId })
+        .insert({ user_id: userId, post_id: postId })
     }
   }
 
