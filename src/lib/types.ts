@@ -175,6 +175,19 @@ export type Meetup = {
   meetup_attendees?: MeetupAttendee[]
 }
 
+export type PlayerReview = {
+  id: string
+  reviewer_id: string
+  reviewee_id: string
+  pace_rating: number
+  etiquette_rating: number
+  fun_rating: number
+  comment: string | null
+  created_at: string
+  reviewer?: Profile
+  reviewee?: Profile
+}
+
 export type AvailabilityStatus = 'open' | 'closed'
 
 export type Availability = {

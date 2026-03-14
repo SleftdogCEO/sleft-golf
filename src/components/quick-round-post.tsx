@@ -37,11 +37,11 @@ export function QuickRoundPost({ onPostCreated }: QuickRoundPostProps) {
   // Check auth on mount
   useEffect(() => {
     const supabase = supabaseRef.current
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(({ data: { session } }: { data: { session: { user?: { id: string } } | null } }) => {
       setUserId(session?.user?.id ?? null)
       setAuthChecked(true)
     })
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event: string, session: { user?: { id: string } } | null) => {
       setUserId(session?.user?.id ?? null)
       setAuthChecked(true)
     })
@@ -57,7 +57,7 @@ export function QuickRoundPost({ onPostCreated }: QuickRoundPostProps) {
           .select('*')
           .or(`name.ilike.%${courseSearch}%,parent_club.ilike.%${courseSearch}%,city.ilike.%${courseSearch}%`)
           .limit(6)
-          .then(({ data }) => { if (data) setCourses(data as Course[]) })
+          .then(({ data }: { data: Course[] | null }) => { if (data) setCourses(data) })
       }, 200)
       return () => clearTimeout(timeout)
     } else {

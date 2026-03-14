@@ -22,7 +22,7 @@ export function useGuest() {
         .select('*')
         .eq('id', id)
         .single()
-        .then(({ data }) => {
+        .then(({ data }: { data: Profile | null }) => {
           if (data) {
             setProfile(data)
           } else {

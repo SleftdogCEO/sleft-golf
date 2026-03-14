@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import type { Profile, Round, Post } from '@/lib/types';
+import type { Profile, Round, Post, PlayerReview } from '@/lib/types';
 import {
   Camera,
   Edit2,
@@ -16,10 +16,13 @@ import {
   X,
   MessageSquare,
   Flag,
+  Star,
+  Plus,
 } from 'lucide-react';
 import { useUser } from '@/hooks/use-user';
+import { PlayerReviewModal, ReviewCard } from '@/components/player-review-modal';
 
-type ProfileTab = 'rounds' | 'posts';
+type ProfileTab = 'rounds' | 'posts' | 'reviews';
 
 interface ProfileForm {
   full_name: string;
@@ -44,6 +47,8 @@ export default function ProfilePage() {
   const [activeTab, setActiveTab] = useState<ProfileTab>('rounds');
   const [rounds, setRounds] = useState<Round[]>([]);
   const [posts, setPosts] = useState<Post[]>([]);
+  const [reviews, setReviews] = useState<PlayerReview[]>([]);
+  const [showReviewModal, setShowReviewModal] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [formData, setFormData] = useState<ProfileForm>({
     full_name: '',
@@ -138,6 +143,13 @@ export default function ProfilePage() {
         .eq('user_id', userId)
         .order('created_at', { ascending: false });
       if (data) setPosts(data as Post[]);
+    } else if (activeTab === 'reviews') {
+      const { data } = await supabase
+        .from('player_reviews')
+        .select('*, reviewer:profiles!player_reviews_reviewer_id_fkey(*)')
+        .eq('reviewee_id', userId)
+        .order('created_at', { ascending: false });
+      if (data) setReviews(data as PlayerReview[]);
     }
   }, [supabase, activeTab, userId]);
 
@@ -245,6 +257,7 @@ export default function ProfilePage() {
   const tabs: { key: ProfileTab; label: string; count: number }[] = [
     { key: 'rounds', label: 'My Rounds', count: rounds.length },
     { key: 'posts', label: 'My Posts', count: posts.length },
+    { key: 'reviews', label: 'Reviews', count: reviews.length },
   ];
 
   if (loading) {
@@ -543,6 +556,7 @@ export default function ProfilePage() {
             >
               {tab.key === 'rounds' && <Flag className="w-4 h-4" />}
               {tab.key === 'posts' && <MessageSquare className="w-4 h-4" />}
+              {tab.key === 'reviews' && <Star className="w-4 h-4" />}
               {tab.label}
               {tab.count > 0 && (
                 <span
@@ -667,8 +681,77 @@ export default function ProfilePage() {
             </>
           )}
 
+          {/* Reviews */}
+          {activeTab === 'reviews' && (
+            <>
+              {/* Review a Golfer button */}
+              <button
+                onClick={() => setShowReviewModal(true)}
+                className="w-full flex items-center justify-center gap-2 bg-emerald-600 text-white py-3 rounded-xl font-semibold hover:bg-emerald-500 transition-colors mb-4"
+              >
+                <Plus className="w-5 h-5" />
+                Review a Golfer
+              </button>
+
+              {/* Average ratings summary */}
+              {reviews.length > 0 && (
+                <div className="bg-dark-800 rounded-xl shadow-sm border border-dark-700 p-5 mb-4">
+                  <h3 className="text-sm font-semibold text-gray-400 mb-3">Average Ratings</h3>
+                  <div className="grid grid-cols-3 gap-4">
+                    {[
+                      { label: 'Pace', emoji: '\u{1F3C3}', key: 'pace_rating' as const },
+                      { label: 'Etiquette', emoji: '\u{1F91D}', key: 'etiquette_rating' as const },
+                      { label: 'Fun', emoji: '\u{1F389}', key: 'fun_rating' as const },
+                    ].map(cat => {
+                      const avg = reviews.reduce((sum, r) => sum + r[cat.key], 0) / reviews.length;
+                      return (
+                        <div key={cat.key} className="text-center">
+                          <div className="text-lg mb-1">{cat.emoji}</div>
+                          <div className="flex justify-center items-center gap-1 mb-0.5">
+                            <Star className="w-4 h-4 text-yellow-400 fill-yellow-400" />
+                            <span className="text-lg font-bold text-white">{avg.toFixed(1)}</span>
+                          </div>
+                          <div className="text-xs text-gray-500">{cat.label}</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="text-center mt-3 pt-3 border-t border-dark-700">
+                    <span className="text-xs text-gray-500">{reviews.length} review{reviews.length !== 1 ? 's' : ''}</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Individual reviews */}
+              {reviews.length === 0 ? (
+                <div className="bg-dark-800 rounded-xl shadow-sm border border-dark-700 p-12 text-center">
+                  <Star className="w-12 h-12 text-gray-600 mx-auto mb-3" />
+                  <h3 className="text-lg font-semibold text-gray-400 mb-1">No reviews yet</h3>
+                  <p className="text-gray-500 text-sm">Play some rounds and ask your partners to review you!</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {reviews.map(review => (
+                    <ReviewCard key={review.id} review={review} />
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+
         </div>
       </div>
+
+      {/* Review Modal */}
+      {showReviewModal && userId && (
+        <PlayerReviewModal
+          userId={userId}
+          onClose={() => {
+            setShowReviewModal(false);
+            if (activeTab === 'reviews') fetchTabData();
+          }}
+        />
+      )}
     </div>
   );
 }

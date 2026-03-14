@@ -11,6 +11,7 @@ import { GOLF_REACTIONS } from '@/lib/golf-reactions'
 import { QuickRoundPost } from '@/components/quick-round-post'
 import { LeaderboardWidget } from '@/components/leaderboard-widget'
 import { HotCoursesWidget } from '@/components/hot-courses-widget'
+import { PostComments } from '@/components/post-comments'
 import { useUser } from '@/hooks/use-user'
 
 export default function FeedPage() {
@@ -29,6 +30,7 @@ export default function FeedPage() {
   const [postError, setPostError] = useState<string | null>(null)
   const [likedPosts, setLikedPosts] = useState<Set<string>>(new Set())
   const [postReactions, setPostReactions] = useState<Record<string, Record<string, { count: number; reacted: boolean }>>>({})
+  const [expandedComments, setExpandedComments] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     fetchPosts()
@@ -55,18 +57,25 @@ export default function FeedPage() {
 
   async function fetchPosts() {
     setLoading(true)
-    const { data, error } = await supabase
-      .from('posts')
-      .select('*, profiles(*), rounds(*, courses(*))')
-      .order('created_at', { ascending: false })
-      .limit(50)
+    try {
+      const { data, error } = await supabase
+        .from('posts')
+        .select('*, profiles(*), rounds(*, courses(*))')
+        .order('created_at', { ascending: false })
+        .limit(50)
 
-    if (error) {
-      console.error('Error fetching posts:', error)
-    } else {
-      setPosts(data || [])
+      if (error) {
+        console.error('Error fetching posts:', error)
+        setPostError(`Feed error: ${error.message}`)
+      } else {
+        setPosts(data || [])
+      }
+    } catch (err: unknown) {
+      console.error('Feed fetch exception:', err)
+      setPostError(`Feed exception: ${err instanceof Error ? err.message : String(err)}`)
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }
 
   function handleImageSelect(e: React.ChangeEvent<HTMLInputElement>) {
@@ -477,8 +486,20 @@ export default function FeedPage() {
                     />
                     {post.likes_count > 0 && post.likes_count}
                   </button>
-                  <button className="inline-flex items-center gap-1.5 text-sm font-medium text-gray-500 hover:text-emerald-600 transition-colors">
-                    <MessageCircle className="w-5 h-5" />
+                  <button
+                    onClick={() => setExpandedComments(prev => {
+                      const next = new Set(prev)
+                      if (next.has(post.id)) next.delete(post.id)
+                      else next.add(post.id)
+                      return next
+                    })}
+                    className={`inline-flex items-center gap-1.5 text-sm font-medium transition-colors ${
+                      expandedComments.has(post.id)
+                        ? 'text-emerald-500'
+                        : 'text-gray-400 hover:text-emerald-600'
+                    }`}
+                  >
+                    <MessageCircle className={`w-5 h-5 ${expandedComments.has(post.id) ? 'fill-current' : ''}`} />
                     {post.comments_count > 0 && post.comments_count}
                   </button>
                 </div>
@@ -491,6 +512,19 @@ export default function FeedPage() {
                     onRemoveReaction={(emoji) => removeReaction(post.id, emoji)}
                   />
                 </div>
+
+                {/* Comments */}
+                {expandedComments.has(post.id) && (
+                  <PostComments
+                    postId={post.id}
+                    userId={userId}
+                    onCountChange={(pid, delta) => {
+                      setPosts(prev => prev.map(p =>
+                        p.id === pid ? { ...p, comments_count: p.comments_count + delta } : p
+                      ))
+                    }}
+                  />
+                )}
               </div>
             ))}
           </div>

@@ -17,14 +17,14 @@ export default function ResetPasswordPage() {
   useEffect(() => {
     // Supabase automatically exchanges the token from the URL hash
     // Listen for the PASSWORD_RECOVERY event
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event: string) => {
       if (event === 'PASSWORD_RECOVERY') {
         setSessionReady(true)
       }
     })
 
     // Also check if already in a session (user clicked link and session was restored)
-    supabase.auth.getUser().then(({ data: { user } }) => {
+    supabase.auth.getUser().then(({ data: { user } }: { data: { user: unknown } }) => {
       if (user) setSessionReady(true)
     })
 

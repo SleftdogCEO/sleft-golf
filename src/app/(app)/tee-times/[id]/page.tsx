@@ -89,7 +89,7 @@ export default function MatchRoomPage() {
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'meetup_messages', filter: `meetup_id=eq.${id}` },
-        async (payload) => {
+        async (payload: { new: { id: string } }) => {
           // Fetch the full message with profile
           const { data } = await supabase
             .from('meetup_messages')
