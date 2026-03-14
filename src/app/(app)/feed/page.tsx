@@ -167,7 +167,7 @@ export default function FeedPage() {
   }
 
   async function addReaction(postId: string, emoji: string) {
-    if (!user) return
+    if (!user) { window.location.href = '/login?redirect=/feed'; return }
     setPostReactions(prev => {
       const next = { ...prev }
       if (!next[postId]) next[postId] = {}
@@ -182,7 +182,7 @@ export default function FeedPage() {
   }
 
   async function removeReaction(postId: string, emoji: string) {
-    if (!user) return
+    if (!user) { window.location.href = '/login?redirect=/feed'; return }
     setPostReactions(prev => {
       const next = { ...prev }
       if (next[postId]?.[emoji]) {
@@ -207,7 +207,7 @@ export default function FeedPage() {
   }
 
   async function toggleLike(postId: string) {
-    if (!user) return
+    if (!user) { window.location.href = '/login?redirect=/feed'; return }
 
     const isLiked = likedPosts.has(postId)
 
