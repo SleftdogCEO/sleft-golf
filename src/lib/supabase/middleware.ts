@@ -44,7 +44,10 @@ export async function updateSession(request: NextRequest) {
     pathname.startsWith('/tee-times') ||
     pathname.startsWith('/calendar') ||
     pathname.startsWith('/propose') ||
-    pathname.startsWith('/profile')
+    pathname.startsWith('/profile') ||
+    pathname.startsWith('/support') ||
+    pathname.startsWith('/privacy') ||
+    pathname.startsWith('/terms')
 
   // If not authenticated and trying to access a protected route, redirect to login
   if (!user && !isPublicRoute) {
