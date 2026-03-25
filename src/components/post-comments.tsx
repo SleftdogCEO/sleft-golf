@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import type { Comment } from '@/lib/types'
 import { Send } from 'lucide-react'
@@ -147,7 +148,7 @@ export function PostComments({ postId, userId, onCountChange }: PostCommentsProp
         </form>
       ) : (
         <p className="py-2 text-xs text-gray-500">
-          <a href="/login" className="text-emerald-400 hover:text-emerald-300">Log in</a> to comment.
+          <Link href="/login" className="text-emerald-400 hover:text-emerald-300">Log in</Link> to comment.
         </p>
       )}
     </div>

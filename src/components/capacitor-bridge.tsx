@@ -1,12 +1,16 @@
 'use client'
 
 import { useEffect } from 'react'
+import { useUser } from '@/hooks/use-user'
+import { createClient } from '@/lib/supabase/client'
+import { registerPushNotifications } from '@/lib/push-notifications'
 
 export function CapacitorBridge() {
+  const { userId } = useUser()
+
   useEffect(() => {
     async function initCapacitor() {
       try {
-        // Only run in Capacitor native context
         const { Capacitor } = await import('@capacitor/core')
         if (!Capacitor.isNativePlatform()) return
 
@@ -37,18 +41,88 @@ export function CapacitorBridge() {
           }
         })
 
-        // Handle back button on Android (also good practice)
+        // Handle back button (Android + good practice)
         App.addListener('backButton', ({ canGoBack }) => {
           if (canGoBack) {
             window.history.back()
           }
         })
+
+        // Restore session from native storage on cold launch
+        try {
+          const { Preferences } = await import('@capacitor/preferences')
+          const { value: savedSession } = await Preferences.get({ key: 'supabase_session' })
+          if (savedSession) {
+            const session = JSON.parse(savedSession)
+            const supabase = createClient()
+            await supabase.auth.setSession({
+              access_token: session.access_token,
+              refresh_token: session.refresh_token,
+            })
+          }
+        } catch {
+          // No saved session
+        }
       } catch {
-        // Not running in Capacitor, ignore
+        // Not running in Capacitor
       }
     }
 
     initCapacitor()
+  }, [])
+
+  // Register push notifications when user is authenticated
+  useEffect(() => {
+    if (!userId) return
+
+    async function initPush() {
+      try {
+        const { Capacitor } = await import('@capacitor/core')
+        if (!Capacitor.isNativePlatform()) return
+
+        const supabase = createClient()
+        await registerPushNotifications(supabase, userId!)
+      } catch {
+        // Push not available
+      }
+    }
+
+    initPush()
+  }, [userId])
+
+  // Persist session to native storage whenever auth state changes
+  useEffect(() => {
+    async function persistSession() {
+      try {
+        const { Capacitor } = await import('@capacitor/core')
+        if (!Capacitor.isNativePlatform()) return
+
+        const { Preferences } = await import('@capacitor/preferences')
+        const supabase = createClient()
+
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(
+          async (_event, session) => {
+            if (session) {
+              await Preferences.set({
+                key: 'supabase_session',
+                value: JSON.stringify({
+                  access_token: session.access_token,
+                  refresh_token: session.refresh_token,
+                }),
+              })
+            } else {
+              await Preferences.remove({ key: 'supabase_session' })
+            }
+          }
+        )
+
+        return () => subscription.unsubscribe()
+      } catch {
+        // Not native
+      }
+    }
+
+    persistSession()
   }, [])
 
   return null

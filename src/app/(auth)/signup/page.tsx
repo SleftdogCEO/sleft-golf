@@ -1,8 +1,10 @@
 'use client'
 
 import { useState, useRef, Suspense } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useSearchParams, useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
+import { hapticSuccess, hapticError } from '@/lib/haptics'
 
 export default function SignupPage() {
   return (
@@ -15,6 +17,7 @@ export default function SignupPage() {
 function SignupForm() {
   const searchParams = useSearchParams()
   const redirect = searchParams.get('redirect') || '/feed'
+  const router = useRouter()
   const supabaseRef = useRef(createClient())
   const supabase = supabaseRef.current
 
@@ -30,7 +33,6 @@ function SignupForm() {
     setLoading(true)
 
     try {
-      // Use server-side API route to avoid proxy issues with auth
       const res = await fetch('/api/auth/signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -40,7 +42,6 @@ function SignupForm() {
       const result = await res.json()
 
       if (result.alreadyRegistered) {
-        // Try logging in instead
         const loginRes = await fetch('/api/auth/login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -50,6 +51,7 @@ function SignupForm() {
 
         if (!loginRes.ok || loginResult.error) {
           setError('An account with this email already exists. Try logging in instead.')
+          hapticError()
           setLoading(false)
           return
         }
@@ -58,18 +60,19 @@ function SignupForm() {
             access_token: loginResult.session.access_token,
             refresh_token: loginResult.session.refresh_token,
           })
-          window.location.href = redirect
+          hapticSuccess()
+          router.replace(redirect)
           return
         }
       }
 
       if (!res.ok || result.error) {
         setError(result.error || 'Signup failed. Please try again.')
+        hapticError()
         setLoading(false)
         return
       }
 
-      // If email confirmation is required and no session yet
       if (result.user && !result.session) {
         setError('Check your email to confirm your account, then log in.')
         setLoading(false)
@@ -81,13 +84,15 @@ function SignupForm() {
           access_token: result.session.access_token,
           refresh_token: result.session.refresh_token,
         })
-        window.location.href = redirect
+        hapticSuccess()
+        router.replace(redirect)
         return
       }
 
-      window.location.href = redirect
+      router.replace(redirect)
     } catch {
       setError('Something went wrong. Please try again.')
+      hapticError()
       setLoading(false)
     }
   }
@@ -155,9 +160,9 @@ function SignupForm() {
 
       <p className="text-center text-gray-400 text-sm mt-6">
         Already have an account?{' '}
-        <a href={`/login?redirect=${encodeURIComponent(redirect)}`} className="text-emerald-400 hover:text-emerald-300 font-medium">
+        <Link href={`/login?redirect=${encodeURIComponent(redirect)}`} className="text-emerald-400 hover:text-emerald-300 font-medium">
           Log in
-        </a>
+        </Link>
       </p>
     </div>
   )

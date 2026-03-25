@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import type { Course } from '@/lib/types'
 import { MapPin, Camera, Send, X, Search, ChevronDown } from 'lucide-react'
@@ -20,6 +21,7 @@ interface QuickRoundPostProps {
 export function QuickRoundPost({ onPostCreated }: QuickRoundPostProps) {
   const supabaseRef = useRef(createClient())
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const router = useRouter()
 
   const [userId, setUserId] = useState<string | null>(null)
   const [authChecked, setAuthChecked] = useState(false)
@@ -83,7 +85,7 @@ export function QuickRoundPost({ onPostCreated }: QuickRoundPostProps) {
   function handleButtonClick() {
     if (!authChecked) return
     if (!userId) {
-      window.location.href = '/login?redirect=/feed'
+      router.push('/login?redirect=/feed')
       return
     }
     setExpanded(true)

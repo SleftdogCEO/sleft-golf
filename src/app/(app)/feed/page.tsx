@@ -1,9 +1,10 @@
 'use client'
 
 import { useEffect, useState, useRef } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import type { Post, Profile } from '@/lib/types'
-import { Heart, MessageCircle, Image as ImageIcon, Send, MapPin } from 'lucide-react'
+import { Heart, MessageCircle, Image as ImageIcon, Send, MapPin, Share2 } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import { DailyDadJoke } from '@/components/daily-dad-joke'
 import { GolfReactionPicker } from '@/components/golf-reactions'
@@ -13,12 +14,15 @@ import { LeaderboardWidget } from '@/components/leaderboard-widget'
 import { HotCoursesWidget } from '@/components/hot-courses-widget'
 import { PostComments } from '@/components/post-comments'
 import { useUser } from '@/hooks/use-user'
-import { hapticLight, hapticMedium } from '@/lib/haptics'
+import { hapticLight, hapticMedium, hapticSuccess } from '@/lib/haptics'
+import { sharePost } from '@/lib/native-share'
+import { takePhoto, isNativePlatform } from '@/lib/native-camera'
 
 export default function FeedPage() {
   const supabaseRef = useRef(createClient())
   const supabase = supabaseRef.current
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const router = useRouter()
   const { userId, profile, loading: authLoading } = useUser()
 
   const [posts, setPosts] = useState<Post[]>([])
@@ -32,6 +36,11 @@ export default function FeedPage() {
   const [likedPosts, setLikedPosts] = useState<Set<string>>(new Set())
   const [postReactions, setPostReactions] = useState<Record<string, Record<string, { count: number; reacted: boolean }>>>({})
   const [expandedComments, setExpandedComments] = useState<Set<string>>(new Set())
+  const [useNativeCamera, setUseNativeCamera] = useState(false)
+
+  useEffect(() => {
+    isNativePlatform().then(setUseNativeCamera)
+  }, [])
 
   useEffect(() => {
     fetchPosts()
@@ -88,6 +97,28 @@ export default function FeedPage() {
     reader.readAsDataURL(file)
   }
 
+  async function handleNativeImageSelect() {
+    hapticLight()
+    const photo = await takePhoto()
+    if (!photo) return
+
+    setImagePreview(photo.dataUrl)
+    // Convert blob to File for upload
+    const file = new File([photo.blob], `photo_${Date.now()}.jpg`, { type: 'image/jpeg' })
+    setImageFile(file)
+  }
+
+  async function handleSharePost(post: Post) {
+    hapticMedium()
+    const authorName = post.profiles?.full_name || 'Someone'
+    const content = post.content ? post.content.slice(0, 100) : 'Check out this post'
+    await sharePost({
+      title: `${authorName} on Sleft Golf`,
+      text: content,
+      url: 'https://sleftgolf.vercel.app/feed',
+    })
+  }
+
   function clearImage() {
     setImagePreview(null)
     setImageFile(null)
@@ -141,6 +172,7 @@ export default function FeedPage() {
         setPosts([newPost, ...posts])
         setNewPostContent('')
         clearImage()
+        hapticSuccess()
       }
     } finally {
       setSubmitting(false)
@@ -165,7 +197,7 @@ export default function FeedPage() {
   }
 
   async function addReaction(postId: string, emoji: string) {
-    if (!userId) { window.location.href = '/login?redirect=/feed'; return }
+    if (!userId) { router.push('/login?redirect=/feed'); return }
     hapticMedium()
     setPostReactions(prev => {
       const next = { ...prev }
@@ -181,7 +213,7 @@ export default function FeedPage() {
   }
 
   async function removeReaction(postId: string, emoji: string) {
-    if (!userId) { window.location.href = '/login?redirect=/feed'; return }
+    if (!userId) { router.push('/login?redirect=/feed'); return }
     setPostReactions(prev => {
       const next = { ...prev }
       if (next[postId]?.[emoji]) {
@@ -206,7 +238,7 @@ export default function FeedPage() {
   }
 
   async function toggleLike(postId: string) {
-    if (!userId) { window.location.href = '/login?redirect=/feed'; return }
+    if (!userId) { router.push('/login?redirect=/feed'); return }
     hapticLight()
 
     const isLiked = likedPosts.has(postId)
@@ -320,16 +352,26 @@ export default function FeedPage() {
                 className="flex-1 bg-dark-700 rounded-xl px-4 py-2 text-sm text-gray-100 placeholder-gray-500 focus:ring-2 focus:ring-emerald-500 focus:bg-dark-600 transition-colors border-0"
               />
               <div className="flex items-center gap-1">
-                <label className="p-2 text-gray-500 hover:text-emerald-400 cursor-pointer rounded-lg hover:bg-emerald-900/30 transition-colors">
-                  <ImageIcon className="w-4 h-4" />
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    onChange={handleImageSelect}
-                    className="hidden"
-                  />
-                </label>
+                {useNativeCamera ? (
+                  <button
+                    type="button"
+                    onClick={handleNativeImageSelect}
+                    className="p-2 text-gray-500 hover:text-emerald-400 rounded-lg hover:bg-emerald-900/30 transition-colors"
+                  >
+                    <ImageIcon className="w-4 h-4" />
+                  </button>
+                ) : (
+                  <label className="p-2 text-gray-500 hover:text-emerald-400 cursor-pointer rounded-lg hover:bg-emerald-900/30 transition-colors">
+                    <ImageIcon className="w-4 h-4" />
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageSelect}
+                      className="hidden"
+                    />
+                  </label>
+                )}
                 <button
                   type="submit"
                   disabled={submitting || (!newPostContent.trim() && !imageFile)}
@@ -487,12 +529,15 @@ export default function FeedPage() {
                     {post.likes_count > 0 && post.likes_count}
                   </button>
                   <button
-                    onClick={() => setExpandedComments(prev => {
-                      const next = new Set(prev)
-                      if (next.has(post.id)) next.delete(post.id)
-                      else next.add(post.id)
-                      return next
-                    })}
+                    onClick={() => {
+                      hapticLight()
+                      setExpandedComments(prev => {
+                        const next = new Set(prev)
+                        if (next.has(post.id)) next.delete(post.id)
+                        else next.add(post.id)
+                        return next
+                      })
+                    }}
                     className={`inline-flex items-center gap-1.5 text-sm font-medium transition-colors ${
                       expandedComments.has(post.id)
                         ? 'text-emerald-500'
@@ -501,6 +546,12 @@ export default function FeedPage() {
                   >
                     <MessageCircle className={`w-5 h-5 ${expandedComments.has(post.id) ? 'fill-current' : ''}`} />
                     {post.comments_count > 0 && post.comments_count}
+                  </button>
+                  <button
+                    onClick={() => handleSharePost(post)}
+                    className="inline-flex items-center gap-1.5 text-sm font-medium text-gray-400 hover:text-blue-400 transition-colors ml-auto"
+                  >
+                    <Share2 className="w-5 h-5" />
                   </button>
                 </div>
 

@@ -62,7 +62,7 @@ export default function ResetPasswordPage() {
 
     // Redirect to feed after a moment
     setTimeout(() => {
-      window.location.href = '/feed'
+      router.replace('/feed')
     }, 2000)
   }
 

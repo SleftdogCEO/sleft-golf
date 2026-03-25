@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import type { Profile, Round, Post, PlayerReview } from '@/lib/types';
 import {
@@ -18,9 +19,16 @@ import {
   Flag,
   Star,
   Plus,
+  Share2,
+  LogOut,
+  RefreshCw,
+  AlertTriangle,
 } from 'lucide-react';
 import { useUser } from '@/hooks/use-user';
 import { PlayerReviewModal, ReviewCard } from '@/components/player-review-modal';
+import { takePhoto, isNativePlatform } from '@/lib/native-camera';
+import { sharePost } from '@/lib/native-share';
+import { hapticLight, hapticMedium, hapticSuccess, hapticError } from '@/lib/haptics';
 
 type ProfileTab = 'rounds' | 'posts' | 'reviews';
 
@@ -38,7 +46,9 @@ interface ProfileForm {
 
 export default function ProfilePage() {
   const supabase = createClient();
-  const { userId } = useUser();
+  const router = useRouter();
+  const { userId, loading: authLoading } = useUser();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -50,6 +60,10 @@ export default function ProfilePage() {
   const [reviews, setReviews] = useState<PlayerReview[]>([]);
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [useNativeCamera, setUseNativeCamera] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [formData, setFormData] = useState<ProfileForm>({
     full_name: '',
     username: '',
@@ -62,6 +76,11 @@ export default function ProfilePage() {
     linkedin_url: '',
   });
 
+  // Check for native platform on mount
+  useEffect(() => {
+    isNativePlatform().then(setUseNativeCamera);
+  }, []);
+
   const fetchProfile = useCallback(async () => {
     if (!userId) {
       setLoading(false);
@@ -69,93 +88,113 @@ export default function ProfilePage() {
     }
 
     setLoading(true);
+    setFetchError(null);
 
-    const { data: profileData } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', userId)
-      .single();
+    try {
+      const { data: profileData, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
 
-    if (profileData) {
-      const p = profileData as Profile;
-      setProfile(p);
-      setFormData({
-        full_name: p.full_name ?? '',
-        username: p.username ?? '',
-        bio: p.bio ?? '',
-        handicap: p.handicap != null ? String(p.handicap) : '',
-        home_course: p.home_course ?? '',
-        location: p.location ?? '',
-        occupation: p.occupation ?? '',
-        company: p.company ?? '',
-        linkedin_url: p.linkedin_url ?? '',
-      });
-    } else {
-      // Profile doesn't exist yet — create one
-      const { data: { user: authUser } } = await supabase.auth.getUser();
-      if (authUser) {
-        const newProfile = {
-          id: authUser.id,
-          full_name: authUser.user_metadata?.full_name || 'Golfer',
-          username: authUser.email?.split('@')[0] || 'golfer',
-          email: authUser.email,
-        };
-        const { data: created } = await supabase
-          .from('profiles')
-          .upsert(newProfile, { onConflict: 'id' })
-          .select()
-          .single();
-        if (created) {
-          const p = created as Profile;
-          setProfile(p);
-          setFormData({
-            full_name: p.full_name ?? '',
-            username: p.username ?? '',
-            bio: p.bio ?? '',
-            handicap: p.handicap != null ? String(p.handicap) : '',
-            home_course: p.home_course ?? '',
-            location: p.location ?? '',
-            occupation: p.occupation ?? '',
-            company: p.company ?? '',
-            linkedin_url: p.linkedin_url ?? '',
-          });
+      if (error && error.code !== 'PGRST116') {
+        throw new Error(error.message);
+      }
+
+      if (profileData) {
+        const p = profileData as Profile;
+        setProfile(p);
+        setFormData({
+          full_name: p.full_name ?? '',
+          username: p.username ?? '',
+          bio: p.bio ?? '',
+          handicap: p.handicap != null ? String(p.handicap) : '',
+          home_course: p.home_course ?? '',
+          location: p.location ?? '',
+          occupation: p.occupation ?? '',
+          company: p.company ?? '',
+          linkedin_url: p.linkedin_url ?? '',
+        });
+      } else {
+        // Profile doesn't exist yet - create one
+        const { data: { user: authUser } } = await supabase.auth.getUser();
+        if (authUser) {
+          const newProfile = {
+            id: authUser.id,
+            full_name: authUser.user_metadata?.full_name || 'Golfer',
+            username: authUser.email?.split('@')[0] || 'golfer',
+            email: authUser.email,
+          };
+          const { data: created, error: createError } = await supabase
+            .from('profiles')
+            .upsert(newProfile, { onConflict: 'id' })
+            .select()
+            .single();
+
+          if (createError) throw new Error(createError.message);
+
+          if (created) {
+            const p = created as Profile;
+            setProfile(p);
+            setFormData({
+              full_name: p.full_name ?? '',
+              username: p.username ?? '',
+              bio: p.bio ?? '',
+              handicap: p.handicap != null ? String(p.handicap) : '',
+              home_course: p.home_course ?? '',
+              location: p.location ?? '',
+              occupation: p.occupation ?? '',
+              company: p.company ?? '',
+              linkedin_url: p.linkedin_url ?? '',
+            });
+          }
         }
       }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to load profile';
+      setFetchError(msg);
+      console.error('Profile fetch error:', err);
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   }, [supabase, userId]);
 
   const fetchTabData = useCallback(async () => {
     if (!userId) return;
 
-    if (activeTab === 'rounds') {
-      const { data } = await supabase
-        .from('rounds')
-        .select('*, courses(*)')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false });
-      if (data) setRounds(data as Round[]);
-    } else if (activeTab === 'posts') {
-      const { data } = await supabase
-        .from('posts')
-        .select('*')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false });
-      if (data) setPosts(data as Post[]);
-    } else if (activeTab === 'reviews') {
-      const { data } = await supabase
-        .from('player_reviews')
-        .select('*, reviewer:profiles!player_reviews_reviewer_id_fkey(*)')
-        .eq('reviewee_id', userId)
-        .order('created_at', { ascending: false });
-      if (data) setReviews(data as PlayerReview[]);
+    try {
+      if (activeTab === 'rounds') {
+        const { data } = await supabase
+          .from('rounds')
+          .select('*, courses(*)')
+          .eq('user_id', userId)
+          .order('created_at', { ascending: false });
+        if (data) setRounds(data as Round[]);
+      } else if (activeTab === 'posts') {
+        const { data } = await supabase
+          .from('posts')
+          .select('*')
+          .eq('user_id', userId)
+          .order('created_at', { ascending: false });
+        if (data) setPosts(data as Post[]);
+      } else if (activeTab === 'reviews') {
+        const { data } = await supabase
+          .from('player_reviews')
+          .select('*, reviewer:profiles!player_reviews_reviewer_id_fkey(*)')
+          .eq('reviewee_id', userId)
+          .order('created_at', { ascending: false });
+        if (data) setReviews(data as PlayerReview[]);
+      }
+    } catch (err) {
+      console.error('Tab data fetch error:', err);
     }
   }, [supabase, activeTab, userId]);
 
   useEffect(() => {
-    fetchProfile();
-  }, [fetchProfile]);
+    if (!authLoading) {
+      fetchProfile();
+    }
+  }, [fetchProfile, authLoading]);
 
   useEffect(() => {
     if (profile) {
@@ -166,6 +205,7 @@ export default function ProfilePage() {
   const handleSaveProfile = async () => {
     if (!profile) return;
     setSaving(true);
+    hapticLight();
 
     const { error } = await supabase
       .from('profiles')
@@ -200,47 +240,122 @@ export default function ProfilePage() {
           : null
       );
       setEditing(false);
+      hapticSuccess();
+    } else {
+      hapticError();
     }
     setSaving(false);
   };
 
-  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !profile) return;
-
+  const handleAvatarUpload = async (source: 'native' | 'file', file?: File) => {
+    if (!profile) return;
     setUploadingAvatar(true);
-    const fileExt = file.name.split('.').pop();
-    const filePath = `${profile.id}/${Date.now()}.${fileExt}`;
 
-    const { error: uploadError } = await supabase.storage
-      .from('avatars')
-      .upload(filePath, file, { upsert: true });
+    try {
+      let uploadFile: Blob;
+      let fileExt: string;
 
-    if (!uploadError) {
-      const {
-        data: { publicUrl },
-      } = supabase.storage.from('avatars').getPublicUrl(filePath);
-
-      const { error: updateError } = await supabase
-        .from('profiles')
-        .update({ avatar_url: publicUrl })
-        .eq('id', profile.id);
-
-      if (!updateError) {
-        setProfile((prev) => (prev ? { ...prev, avatar_url: publicUrl } : null));
+      if (source === 'native') {
+        const photo = await takePhoto();
+        if (!photo) {
+          setUploadingAvatar(false);
+          return;
+        }
+        uploadFile = photo.blob;
+        fileExt = 'jpg';
+      } else if (file) {
+        uploadFile = file;
+        fileExt = file.name.split('.').pop() || 'jpg';
+      } else {
+        setUploadingAvatar(false);
+        return;
       }
+
+      const filePath = `${profile.id}/${Date.now()}.${fileExt}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(filePath, uploadFile, { upsert: true });
+
+      if (!uploadError) {
+        const {
+          data: { publicUrl },
+        } = supabase.storage.from('avatars').getPublicUrl(filePath);
+
+        const { error: updateError } = await supabase
+          .from('profiles')
+          .update({ avatar_url: publicUrl })
+          .eq('id', profile.id);
+
+        if (!updateError) {
+          setProfile((prev) => (prev ? { ...prev, avatar_url: publicUrl } : null));
+          hapticSuccess();
+        }
+      }
+    } catch (err) {
+      console.error('Avatar upload error:', err);
+      hapticError();
     }
+
     setUploadingAvatar(false);
   };
 
   const handleDeleteRound = async (roundId: string) => {
+    hapticLight();
     const { error } = await supabase.from('rounds').delete().eq('id', roundId);
     if (!error) setRounds((prev) => prev.filter((r) => r.id !== roundId));
   };
 
   const handleDeletePost = async (postId: string) => {
+    hapticLight();
     const { error } = await supabase.from('posts').delete().eq('id', postId);
     if (!error) setPosts((prev) => prev.filter((p) => p.id !== postId));
+  };
+
+  const handleShareProfile = async () => {
+    hapticMedium();
+    await sharePost({
+      title: `${profile?.full_name || 'Golfer'} on Sleft Golf`,
+      text: `Check out ${profile?.full_name || 'this golfer'}'s profile on Sleft Golf!`,
+      url: 'https://sleftgolf.vercel.app/profile',
+    });
+  };
+
+  const handleDeleteAccount = async () => {
+    if (!userId) return;
+    setDeleting(true);
+    hapticError();
+
+    try {
+      // Delete profile data
+      await supabase.from('posts').delete().eq('user_id', userId);
+      await supabase.from('rounds').delete().eq('user_id', userId);
+      await supabase.from('likes').delete().eq('user_id', userId);
+      await supabase.from('player_reviews').delete().eq('reviewer_id', userId);
+      await supabase.from('player_reviews').delete().eq('reviewee_id', userId);
+      await supabase.from('profiles').delete().eq('id', userId);
+
+      // Sign out
+      await fetch('/api/auth/logout', { method: 'POST' });
+      await supabase.auth.signOut();
+
+      // Clear native session storage
+      try {
+        const { Capacitor } = await import('@capacitor/core');
+        if (Capacitor.isNativePlatform()) {
+          const { Preferences } = await import('@capacitor/preferences');
+          await Preferences.remove({ key: 'supabase_session' });
+        }
+      } catch {
+        // Not native
+      }
+
+      router.replace('/login');
+    } catch (err) {
+      console.error('Account deletion error:', err);
+      hapticError();
+      setDeleting(false);
+    }
   };
 
   // Stats calculations
@@ -260,18 +375,50 @@ export default function ProfilePage() {
     { key: 'reviews', label: 'Reviews', count: reviews.length },
   ];
 
-  if (loading) {
+  if (loading || authLoading) {
     return (
       <div className="min-h-screen bg-dark-950 flex items-center justify-center">
-        <div className="w-8 h-8 border-4 border-emerald-200 border-t-emerald-600 rounded-full animate-spin" />
+        <div className="text-center">
+          <div className="w-8 h-8 border-4 border-emerald-200 border-t-emerald-600 rounded-full animate-spin mx-auto" />
+          <p className="text-gray-500 text-sm mt-3">Loading profile...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state with retry
+  if (fetchError) {
+    return (
+      <div className="min-h-screen bg-dark-950 flex items-center justify-center px-4">
+        <div className="text-center max-w-sm">
+          <AlertTriangle className="w-12 h-12 text-yellow-500 mx-auto mb-3" />
+          <h2 className="text-lg font-semibold text-white mb-2">Could not load profile</h2>
+          <p className="text-gray-400 text-sm mb-4">{fetchError}</p>
+          <button
+            onClick={() => fetchProfile()}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors font-medium text-sm"
+          >
+            <RefreshCw className="w-4 h-4" />
+            Try Again
+          </button>
+        </div>
       </div>
     );
   }
 
   if (!profile) {
     return (
-      <div className="min-h-screen bg-dark-950 flex items-center justify-center">
-        <p className="text-gray-400">Unable to load profile.</p>
+      <div className="min-h-screen bg-dark-950 flex items-center justify-center px-4">
+        <div className="text-center max-w-sm">
+          <p className="text-gray-400 mb-4">Unable to load profile. Please log in again.</p>
+          <button
+            onClick={() => router.replace('/login')}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors font-medium text-sm"
+          >
+            <LogOut className="w-4 h-4" />
+            Go to Login
+          </button>
+        </div>
       </div>
     );
   }
@@ -301,20 +448,38 @@ export default function ProfilePage() {
                     </div>
                   )}
                 </div>
-                <label className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-full opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
-                  {uploadingAvatar ? (
-                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  ) : (
-                    <Camera className="w-6 h-6 text-white" />
-                  )}
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleAvatarUpload}
-                    className="hidden"
+                {useNativeCamera ? (
+                  <button
+                    onClick={() => handleAvatarUpload('native')}
                     disabled={uploadingAvatar}
-                  />
-                </label>
+                    className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-full opacity-0 group-hover:opacity-100 active:opacity-100 transition-opacity"
+                  >
+                    {uploadingAvatar ? (
+                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <Camera className="w-6 h-6 text-white" />
+                    )}
+                  </button>
+                ) : (
+                  <label className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-full opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
+                    {uploadingAvatar ? (
+                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <Camera className="w-6 h-6 text-white" />
+                    )}
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handleAvatarUpload('file', file);
+                      }}
+                      className="hidden"
+                      disabled={uploadingAvatar}
+                    />
+                  </label>
+                )}
               </div>
 
               <div className="flex-1 sm:mb-1">
@@ -352,9 +517,18 @@ export default function ProfilePage() {
                 </div>
               </div>
 
-              <div className="sm:mb-1">
+              <div className="sm:mb-1 flex gap-2">
+                {/* Share profile button */}
+                <button
+                  onClick={handleShareProfile}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 border border-dark-600 text-gray-300 rounded-lg hover:bg-dark-700 transition-colors text-sm"
+                  title="Share profile"
+                >
+                  <Share2 className="w-4 h-4" />
+                </button>
+
                 {editing ? (
-                  <div className="flex gap-2">
+                  <>
                     <button
                       onClick={handleSaveProfile}
                       disabled={saving}
@@ -370,10 +544,10 @@ export default function ProfilePage() {
                       <X className="w-4 h-4" />
                       Cancel
                     </button>
-                  </div>
+                  </>
                 ) : (
                   <button
-                    onClick={() => setEditing(true)}
+                    onClick={() => { setEditing(true); hapticLight(); }}
                     className="inline-flex items-center gap-1.5 px-4 py-2 border border-dark-600 text-gray-300 rounded-lg hover:bg-dark-700 transition-colors font-medium text-sm"
                   >
                     <Edit2 className="w-4 h-4" />
@@ -547,7 +721,7 @@ export default function ProfilePage() {
           {tabs.map((tab) => (
             <button
               key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
+              onClick={() => { setActiveTab(tab.key); hapticLight(); }}
               className={`flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${
                 activeTab === tab.key
                   ? 'bg-emerald-900/30 text-emerald-400 border border-emerald-500'
@@ -684,16 +858,14 @@ export default function ProfilePage() {
           {/* Reviews */}
           {activeTab === 'reviews' && (
             <>
-              {/* Review a Golfer button */}
               <button
-                onClick={() => setShowReviewModal(true)}
+                onClick={() => { setShowReviewModal(true); hapticMedium(); }}
                 className="w-full flex items-center justify-center gap-2 bg-emerald-600 text-white py-3 rounded-xl font-semibold hover:bg-emerald-500 transition-colors mb-4"
               >
                 <Plus className="w-5 h-5" />
                 Review a Golfer
               </button>
 
-              {/* Average ratings summary */}
               {reviews.length > 0 && (
                 <div className="bg-dark-800 rounded-xl shadow-sm border border-dark-700 p-5 mb-4">
                   <h3 className="text-sm font-semibold text-gray-400 mb-3">Average Ratings</h3>
@@ -722,7 +894,6 @@ export default function ProfilePage() {
                 </div>
               )}
 
-              {/* Individual reviews */}
               {reviews.length === 0 ? (
                 <div className="bg-dark-800 rounded-xl shadow-sm border border-dark-700 p-12 text-center">
                   <Star className="w-12 h-12 text-gray-600 mx-auto mb-3" />
@@ -738,7 +909,40 @@ export default function ProfilePage() {
               )}
             </>
           )}
+        </div>
 
+        {/* Account Deletion Section */}
+        <div className="mt-12 pt-8 border-t border-dark-700">
+          <h3 className="text-sm font-semibold text-gray-500 mb-3">Account</h3>
+          {!showDeleteConfirm ? (
+            <button
+              onClick={() => setShowDeleteConfirm(true)}
+              className="text-sm text-red-400 hover:text-red-300 transition-colors"
+            >
+              Delete my account
+            </button>
+          ) : (
+            <div className="bg-red-900/20 border border-red-800/50 rounded-xl p-4">
+              <p className="text-red-300 text-sm mb-3">
+                This will permanently delete your account and all your data (posts, rounds, reviews). This cannot be undone.
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={handleDeleteAccount}
+                  disabled={deleting}
+                  className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 disabled:opacity-50 transition-colors"
+                >
+                  {deleting ? 'Deleting...' : 'Yes, delete my account'}
+                </button>
+                <button
+                  onClick={() => setShowDeleteConfirm(false)}
+                  className="px-4 py-2 border border-dark-600 text-gray-300 rounded-lg text-sm font-medium hover:bg-dark-700 transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

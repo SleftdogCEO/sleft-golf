@@ -6,15 +6,17 @@ const config: CapacitorConfig = {
   appName: 'Sleft Golf',
   webDir: 'out',
   server: {
-    // Load from live Vercel deployment (server-side routes need a real server)
     url: 'https://sleftgolf.vercel.app/feed',
     cleartext: false,
+    // Keep all navigation inside the app WebView - never open Safari
+    allowNavigation: ['sleftgolf.vercel.app', '*.supabase.co'],
   },
   ios: {
     contentInset: 'automatic',
     backgroundColor: '#0b0f0e',
     preferredContentMode: 'mobile',
     scheme: 'Sleft Golf',
+    handleApplicationNotifications: true,
   },
   plugins: {
     StatusBar: {

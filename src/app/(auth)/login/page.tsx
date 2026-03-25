@@ -1,9 +1,10 @@
 'use client'
 
 import { useState, useRef, Suspense } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useSearchParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
+import { hapticSuccess, hapticError } from '@/lib/haptics'
 
 export default function LoginPage() {
   return (
@@ -16,6 +17,7 @@ export default function LoginPage() {
 function LoginForm() {
   const searchParams = useSearchParams()
   const redirect = searchParams.get('redirect') || '/feed'
+  const router = useRouter()
   const supabaseRef = useRef(createClient())
   const supabase = supabaseRef.current
 
@@ -30,7 +32,6 @@ function LoginForm() {
     setLoading(true)
 
     try {
-      // Use server-side API route to avoid proxy issues with auth
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -41,24 +42,27 @@ function LoginForm() {
 
       if (!res.ok || result.error) {
         setError(result.error || 'Login failed. Please try again.')
+        hapticError()
         setLoading(false)
         return
       }
 
       if (result.session) {
-        // Set the session in the client-side Supabase instance (stores in localStorage)
         await supabase.auth.setSession({
           access_token: result.session.access_token,
           refresh_token: result.session.refresh_token,
         })
-        window.location.href = redirect
+        hapticSuccess()
+        router.replace(redirect)
         return
       }
 
       setError('Login succeeded but no session was created. Please try again.')
+      hapticError()
       setLoading(false)
     } catch {
       setError('Something went wrong. Please try again.')
+      hapticError()
       setLoading(false)
     }
   }
@@ -118,9 +122,9 @@ function LoginForm() {
 
       <p className="text-center text-gray-400 text-sm mt-6">
         Don&apos;t have an account?{' '}
-        <a href={`/signup?redirect=${encodeURIComponent(redirect)}`} className="text-emerald-400 hover:text-emerald-300 font-medium">
+        <Link href={`/signup?redirect=${encodeURIComponent(redirect)}`} className="text-emerald-400 hover:text-emerald-300 font-medium">
           Sign up
-        </a>
+        </Link>
       </p>
     </div>
   )

@@ -47,3 +47,4 @@ ios/App/DerivedData/
 ios/App/build/
 *.xcuserdatad
 *.xcuserstate
+.env*.local

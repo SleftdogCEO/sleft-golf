@@ -46,18 +46,15 @@ export default function Nav() {
   };
 
   async function handleLogout() {
-    // Server-side logout to clear httpOnly cookies
     await fetch('/api/auth/logout', { method: 'POST' });
-    // Client-side signout
     await supabase.auth.signOut();
-    // Clear any remaining supabase cookies
     document.cookie.split(';').forEach(c => {
       const name = c.trim().split('=')[0];
       if (name.startsWith('sb-')) {
         document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/`;
       }
     });
-    window.location.href = "/login";
+    router.replace("/login");
   }
 
   return (
@@ -116,18 +113,18 @@ export default function Nav() {
                 </>
               ) : (
                 <div className="flex items-center gap-2">
-                  <a
+                  <Link
                     href="/login"
                     className="px-3 py-2 rounded-lg text-sm font-medium text-gray-400 hover:text-white hover:bg-dark-800 transition-colors"
                   >
                     Log in
-                  </a>
-                  <a
+                  </Link>
+                  <Link
                     href="/signup"
                     className="px-4 py-2 rounded-lg text-sm font-semibold bg-emerald-600 text-white hover:bg-emerald-500 transition-colors"
                   >
                     Sign up
-                  </a>
+                  </Link>
                 </div>
               )}
             </div>
@@ -169,18 +166,20 @@ export default function Nav() {
                 </>
               ) : (
                 <div className="flex flex-col gap-2 w-full">
-                  <a
+                  <Link
                     href="/login"
+                    onClick={() => setMobileOpen(false)}
                     className="w-full text-center px-4 py-2.5 rounded-lg text-sm font-medium text-gray-400 bg-dark-800 hover:text-white transition-colors"
                   >
                     Log in
-                  </a>
-                  <a
+                  </Link>
+                  <Link
                     href="/signup"
+                    onClick={() => setMobileOpen(false)}
                     className="w-full text-center px-4 py-2.5 rounded-lg text-sm font-semibold bg-emerald-600 text-white hover:bg-emerald-500 transition-colors"
                   >
                     Sign up
-                  </a>
+                  </Link>
                 </div>
               )}
             </div>
