@@ -3,20 +3,24 @@
 import { useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import type { Post, Profile } from '@/lib/types'
-import { Heart, MessageCircle, Image as ImageIcon, Send, MapPin, Share2 } from 'lucide-react'
+import type { Post, Profile, Course } from '@/lib/types'
+import { Heart, MessageCircle, Image as ImageIcon, Send, MapPin, Share2, Search, X, Camera } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
-import { DailyDadJoke } from '@/components/daily-dad-joke'
 import { GolfReactionPicker } from '@/components/golf-reactions'
 import { GOLF_REACTIONS } from '@/lib/golf-reactions'
-import { QuickRoundPost } from '@/components/quick-round-post'
-import { LeaderboardWidget } from '@/components/leaderboard-widget'
-import { HotCoursesWidget } from '@/components/hot-courses-widget'
 import { PostComments } from '@/components/post-comments'
 import { useUser } from '@/hooks/use-user'
 import { hapticLight, hapticMedium, hapticSuccess } from '@/lib/haptics'
 import { sharePost } from '@/lib/native-share'
 import { takePhoto, isNativePlatform } from '@/lib/native-camera'
+
+const VIBES = [
+  { emoji: '\u{1F525}', label: 'On Fire' },
+  { emoji: '\u{1F60E}', label: 'Solid' },
+  { emoji: '\u{1F4AA}', label: 'Grinder' },
+  { emoji: '\u{1F605}', label: 'Rough' },
+  { emoji: '\u{1F37B}', label: 'Vibes' },
+]
 
 export default function FeedPage() {
   const supabaseRef = useRef(createClient())
@@ -26,49 +30,59 @@ export default function FeedPage() {
   const { userId, profile, loading: authLoading } = useUser()
 
   const [posts, setPosts] = useState<Post[]>([])
-  const [newPostContent, setNewPostContent] = useState('')
   const [loading, setLoading] = useState(true)
-  const [user, setUser] = useState<Profile | null>(null)
-  const [imagePreview, setImagePreview] = useState<string | null>(null)
-  const [imageFile, setImageFile] = useState<File | null>(null)
-  const [submitting, setSubmitting] = useState(false)
-  const [postError, setPostError] = useState<string | null>(null)
   const [likedPosts, setLikedPosts] = useState<Set<string>>(new Set())
   const [postReactions, setPostReactions] = useState<Record<string, Record<string, { count: number; reacted: boolean }>>>({})
   const [expandedComments, setExpandedComments] = useState<Set<string>>(new Set())
   const [useNativeCamera, setUseNativeCamera] = useState(false)
 
-  useEffect(() => {
-    isNativePlatform().then(setUseNativeCamera)
-  }, [])
+  // Composer state
+  const [composerOpen, setComposerOpen] = useState(false)
+  const [courseSearch, setCourseSearch] = useState('')
+  const [courses, setCourses] = useState<Course[]>([])
+  const [selectedCourse, setSelectedCourse] = useState<Course | null>(null)
+  const [score, setScore] = useState('')
+  const [vibe, setVibe] = useState<string | null>(null)
+  const [caption, setCaption] = useState('')
+  const [imageFile, setImageFile] = useState<File | null>(null)
+  const [imagePreview, setImagePreview] = useState<string | null>(null)
+  const [submitting, setSubmitting] = useState(false)
+  const [postError, setPostError] = useState<string | null>(null)
 
-  useEffect(() => {
-    fetchPosts()
-  }, [])
-
+  useEffect(() => { isNativePlatform().then(setUseNativeCamera) }, [])
+  useEffect(() => { fetchPosts() }, [])
   useEffect(() => {
     if (profile) {
-      setUser(profile)
       fetchLikedPosts(profile.id)
       fetchReactions(profile.id)
     }
   }, [profile])
 
-  async function fetchLikedPosts(userId: string) {
-    const { data } = await supabase
-      .from('likes')
-      .select('post_id')
-      .eq('user_id', userId)
-
-    if (data) {
-      setLikedPosts(new Set(data.map((l: { post_id: string }) => l.post_id)))
+  // Course search
+  useEffect(() => {
+    if (courseSearch.length >= 2) {
+      const timeout = setTimeout(() => {
+        supabase
+          .from('courses')
+          .select('*')
+          .or(`name.ilike.%${courseSearch}%,parent_club.ilike.%${courseSearch}%,city.ilike.%${courseSearch}%`)
+          .limit(6)
+          .then(({ data }) => { if (data) setCourses(data as Course[]) })
+      }, 200)
+      return () => clearTimeout(timeout)
+    } else {
+      setCourses([])
     }
+  }, [courseSearch])
+
+  async function fetchLikedPosts(uid: string) {
+    const { data } = await supabase.from('likes').select('post_id').eq('user_id', uid)
+    if (data) setLikedPosts(new Set(data.map((l: { post_id: string }) => l.post_id)))
   }
 
   async function fetchPosts() {
     setLoading(true)
     try {
-      // Fetch via same-domain API route to avoid ad-blocker issues
       const res = await fetch('/api/posts')
       if (!res.ok) {
         const body = await res.json().catch(() => ({ error: res.statusText }))
@@ -78,121 +92,45 @@ export default function FeedPage() {
         setPosts(data || [])
       }
     } catch (err: unknown) {
-      console.error('Feed fetch exception:', err)
-      setPostError(`Feed exception: ${err instanceof Error ? err.message : String(err)}`)
+      setPostError(`Feed error: ${err instanceof Error ? err.message : String(err)}`)
     } finally {
       setLoading(false)
     }
   }
 
-  function handleImageSelect(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
-
-    setImageFile(file)
-    const reader = new FileReader()
-    reader.onloadend = () => {
-      setImagePreview(reader.result as string)
-    }
-    reader.readAsDataURL(file)
-  }
-
-  async function handleNativeImageSelect() {
-    hapticLight()
-    const photo = await takePhoto()
-    if (!photo) return
-
-    setImagePreview(photo.dataUrl)
-    // Convert blob to File for upload
-    const file = new File([photo.blob], `photo_${Date.now()}.jpg`, { type: 'image/jpeg' })
-    setImageFile(file)
-  }
-
-  async function handleSharePost(post: Post) {
-    hapticMedium()
-    const authorName = post.profiles?.full_name || 'Someone'
-    const content = post.content ? post.content.slice(0, 100) : 'Check out this post'
-    await sharePost({
-      title: `${authorName} on Sleft Golf`,
-      text: content,
-      url: 'https://sleftgolf.vercel.app/feed',
-    })
-  }
-
-  function clearImage() {
-    setImagePreview(null)
-    setImageFile(null)
-    if (fileInputRef.current) {
-      fileInputRef.current.value = ''
-    }
-  }
-
-  async function handleSubmitPost(e: React.FormEvent) {
-    e.preventDefault()
-    if (!user || (!newPostContent.trim() && !imageFile)) return
-
-    setSubmitting(true)
-    setPostError(null)
-    let imageUrls: string[] = []
-
-    try {
-      if (imageFile) {
-        const fileName = `${user.id}/${Date.now()}-${imageFile.name}`
-        const { error: uploadError } = await supabase.storage
-          .from('posts')
-          .upload(fileName, imageFile)
-
-        if (uploadError) {
-          console.error('Upload error:', uploadError)
-          setPostError('Photo failed to upload. Try again or post without the image.')
-          setSubmitting(false)
-          return
-        } else {
-          const { data: urlData } = supabase.storage
-            .from('posts')
-            .getPublicUrl(fileName)
-          imageUrls = [urlData.publicUrl]
-        }
-      }
-
-      const { data: newPost, error } = await supabase
-        .from('posts')
-        .insert({
-          user_id: user.id,
-          content: newPostContent.trim() || null,
-          image_urls: imageUrls,
-        })
-        .select('*, profiles(*), rounds(*, courses(*))')
-        .single()
-
-      if (error) {
-        console.error('Error creating post:', error)
-        setPostError('Failed to create post. Please try again.')
-      } else if (newPost) {
-        setPosts([newPost, ...posts])
-        setNewPostContent('')
-        clearImage()
-        hapticSuccess()
-      }
-    } finally {
-      setSubmitting(false)
-    }
-  }
-
-  async function fetchReactions(userId: string) {
-    const { data } = await supabase
-      .from('post_reactions')
-      .select('post_id, emoji, user_id')
-
+  async function fetchReactions(uid: string) {
+    const { data } = await supabase.from('post_reactions').select('post_id, emoji, user_id')
     if (data) {
       const grouped: Record<string, Record<string, { count: number; reacted: boolean }>> = {}
       for (const r of data) {
         if (!grouped[r.post_id]) grouped[r.post_id] = {}
         if (!grouped[r.post_id][r.emoji]) grouped[r.post_id][r.emoji] = { count: 0, reacted: false }
         grouped[r.post_id][r.emoji].count++
-        if (r.user_id === userId) grouped[r.post_id][r.emoji].reacted = true
+        if (r.user_id === uid) grouped[r.post_id][r.emoji].reacted = true
       }
       setPostReactions(grouped)
+    }
+  }
+
+  function getReactionsForPost(postId: string) {
+    const reactions = postReactions[postId] || {}
+    return GOLF_REACTIONS.map(r => ({
+      emoji: r.emoji, label: r.label,
+      count: reactions[r.emoji]?.count || 0,
+      reacted: reactions[r.emoji]?.reacted || false,
+    }))
+  }
+
+  async function toggleLike(postId: string) {
+    if (!userId) { router.push('/login?redirect=/feed'); return }
+    hapticLight()
+    const isLiked = likedPosts.has(postId)
+    setPosts(prev => prev.map(p => p.id === postId ? { ...p, likes_count: p.likes_count + (isLiked ? -1 : 1) } : p))
+    setLikedPosts(prev => { const next = new Set(prev); isLiked ? next.delete(postId) : next.add(postId); return next })
+    if (isLiked) {
+      await supabase.from('likes').delete().eq('user_id', userId).eq('post_id', postId)
+    } else {
+      await supabase.from('likes').insert({ user_id: userId, post_id: postId })
     }
   }
 
@@ -206,378 +144,469 @@ export default function FeedPage() {
       next[postId][emoji] = { count: next[postId][emoji].count + 1, reacted: true }
       return next
     })
-    await supabase.from('post_reactions').upsert(
-      { post_id: postId, user_id: userId, emoji },
-      { onConflict: 'post_id,user_id,emoji' }
-    )
+    await supabase.from('post_reactions').upsert({ post_id: postId, user_id: userId, emoji }, { onConflict: 'post_id,user_id,emoji' })
   }
 
   async function removeReaction(postId: string, emoji: string) {
     if (!userId) { router.push('/login?redirect=/feed'); return }
     setPostReactions(prev => {
       const next = { ...prev }
-      if (next[postId]?.[emoji]) {
-        next[postId][emoji] = { count: Math.max(0, next[postId][emoji].count - 1), reacted: false }
-      }
+      if (next[postId]?.[emoji]) next[postId][emoji] = { count: Math.max(0, next[postId][emoji].count - 1), reacted: false }
       return next
     })
-    await supabase.from('post_reactions').delete()
-      .eq('post_id', postId)
-      .eq('user_id', userId)
-      .eq('emoji', emoji)
+    await supabase.from('post_reactions').delete().eq('post_id', postId).eq('user_id', userId).eq('emoji', emoji)
   }
 
-  function getReactionsForPost(postId: string) {
-    const reactions = postReactions[postId] || {}
-    return GOLF_REACTIONS.map(r => ({
-      emoji: r.emoji,
-      label: r.label,
-      count: reactions[r.emoji]?.count || 0,
-      reacted: reactions[r.emoji]?.reacted || false,
-    }))
+  // Image handling
+  function handleImageSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setImageFile(file)
+    const reader = new FileReader()
+    reader.onloadend = () => setImagePreview(reader.result as string)
+    reader.readAsDataURL(file)
   }
 
-  async function toggleLike(postId: string) {
-    if (!userId) { router.push('/login?redirect=/feed'); return }
+  async function handleNativeImageSelect() {
     hapticLight()
+    const photo = await takePhoto()
+    if (!photo) return
+    setImagePreview(photo.dataUrl)
+    setImageFile(new File([photo.blob], `photo_${Date.now()}.jpg`, { type: 'image/jpeg' }))
+  }
 
-    const isLiked = likedPosts.has(postId)
+  function clearImage() {
+    setImagePreview(null)
+    setImageFile(null)
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
 
-    setPosts(prev =>
-      prev.map(p =>
-        p.id === postId
-          ? { ...p, likes_count: p.likes_count + (isLiked ? -1 : 1) }
-          : p
-      )
-    )
-    setLikedPosts(prev => {
-      const next = new Set(prev)
-      if (isLiked) {
-        next.delete(postId)
-      } else {
-        next.add(postId)
+  function resetComposer() {
+    setComposerOpen(false)
+    setSelectedCourse(null)
+    setCourseSearch('')
+    setScore('')
+    setVibe(null)
+    setCaption('')
+    clearImage()
+    setPostError(null)
+  }
+
+  async function handleSubmitRound() {
+    if (!userId || !selectedCourse || !score) return
+    setSubmitting(true)
+    setPostError(null)
+
+    try {
+      // Create round
+      const { data: round, error: roundError } = await supabase
+        .from('rounds')
+        .insert({
+          user_id: userId,
+          course_id: selectedCourse.id,
+          score: parseInt(score),
+          status: 'completed',
+          tee_time: new Date().toISOString(),
+        })
+        .select()
+        .single()
+
+      if (roundError || !round) {
+        setPostError('Failed to create round. Please try again.')
+        setSubmitting(false)
+        return
       }
-      return next
-    })
 
-    if (isLiked) {
-      await supabase
-        .from('likes')
-        .delete()
-        .eq('user_id', userId)
-        .eq('post_id', postId)
-    } else {
-      await supabase
-        .from('likes')
-        .insert({ user_id: userId, post_id: postId })
+      // Upload image if present
+      let imageUrls: string[] = []
+      if (imageFile) {
+        const fileName = `${userId}/${Date.now()}-${imageFile.name}`
+        const { error: uploadError } = await supabase.storage.from('posts').upload(fileName, imageFile)
+        if (!uploadError) {
+          const { data: urlData } = supabase.storage.from('posts').getPublicUrl(fileName)
+          imageUrls = [urlData.publicUrl]
+        }
+      }
+
+      // Build caption
+      const vibeObj = vibe ? VIBES.find(v => v.emoji === vibe) : null
+      const parts: string[] = []
+      if (vibeObj) parts.push(`${vibeObj.emoji} ${vibeObj.label}`)
+      if (caption.trim()) parts.push(caption.trim())
+      const content = parts.join('\n') || null
+
+      // Create post
+      await supabase.from('posts').insert({
+        user_id: userId,
+        round_id: round.id,
+        content,
+        image_urls: imageUrls,
+      })
+
+      hapticSuccess()
+      resetComposer()
+      fetchPosts()
+    } catch {
+      setPostError('Something went wrong. Please try again.')
+    } finally {
+      setSubmitting(false)
     }
   }
 
-  // Render a round scorecard inside a post
-  function RoundCard({ post }: { post: Post }) {
-    if (!post.rounds) return null
-    const round = post.rounds
-    const course = round.courses
-    const diff = round.score != null && course?.par ? round.score - course.par : null
-
-    return (
-      <div className="bg-dark-700/60 rounded-xl p-4 mb-3">
-        {/* Course name */}
-        <div className="flex items-center gap-2 text-emerald-400 text-sm font-medium mb-3">
-          <MapPin className="w-4 h-4 flex-shrink-0" />
-          <span>
-            {course?.parent_club ? `${course.parent_club} – ` : ''}
-            {course?.name || 'Unknown Course'}
-          </span>
-        </div>
-
-        {/* Score display */}
-        <div className="flex items-center gap-3">
-          <div className="text-4xl font-black text-white leading-none">
-            {round.score ?? '--'}
-          </div>
-          {diff !== null && (
-            <div className={`text-sm font-bold px-2.5 py-1 rounded-full ${
-              diff < 0 ? 'bg-emerald-900/60 text-emerald-400' :
-              diff === 0 ? 'bg-emerald-900/60 text-emerald-400' :
-              diff <= 10 ? 'bg-yellow-900/60 text-yellow-400' :
-              'bg-red-900/60 text-red-400'
-            }`}>
-              {diff === 0 ? 'Even par' : diff < 0 ? `${diff} under` : `+${diff} over`}
-            </div>
-          )}
-          {course?.par && (
-            <span className="text-xs text-gray-500">Par {course.par}</span>
-          )}
-        </div>
-      </div>
-    )
+  async function handleSharePost(post: Post) {
+    hapticMedium()
+    const authorName = post.profiles?.full_name || 'Someone'
+    const text = post.content ? post.content.slice(0, 100) : 'Check out this post'
+    await sharePost({ title: `${authorName} on Sleft Golf`, text, url: 'https://sleftgolf.vercel.app/feed' })
   }
+
+  const scoreDiff = score && selectedCourse?.par ? parseInt(score) - selectedCourse.par : null
 
   return (
     <div className="min-h-screen bg-dark-950">
-      <div className="max-w-2xl mx-auto px-4 py-8">
-        <h1 className="text-3xl font-bold text-white mb-6">Feed</h1>
+      <div className="max-w-2xl mx-auto px-4 py-6">
 
-        {/* Quick Round Post — Primary CTA (handles its own auth) */}
-        <div className="mb-4">
-          <QuickRoundPost onPostCreated={fetchPosts} />
-        </div>
-
-        {/* Secondary: Text/Photo Post (compact) */}
-        {(profile || user) && (
-          <form
-            onSubmit={handleSubmitPost}
-            className="bg-dark-800 rounded-2xl shadow-sm border border-dark-700 p-4 mb-6"
+        {/* Composer */}
+        {!composerOpen ? (
+          <button
+            onClick={() => {
+              if (!userId) { router.push('/login?redirect=/feed'); return }
+              hapticLight()
+              setComposerOpen(true)
+            }}
+            className="w-full mb-6 bg-dark-800 rounded-2xl border border-dark-700 p-4 flex items-center gap-3 hover:border-emerald-700/50 transition-colors"
           >
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0 overflow-hidden">
-                {(profile || user)?.avatar_url ? (
-                  <img
-                    src={(profile || user)!.avatar_url!}
-                    alt={(profile || user)!.full_name}
-                    className="w-full h-full object-cover"
+            <div className="w-10 h-10 rounded-full bg-emerald-600/20 flex items-center justify-center flex-shrink-0">
+              {profile?.avatar_url ? (
+                <img src={profile.avatar_url} alt="" className="w-10 h-10 rounded-full object-cover" />
+              ) : (
+                <span className="text-emerald-400 font-semibold text-sm">{profile?.full_name?.charAt(0)?.toUpperCase() || '+'}</span>
+              )}
+            </div>
+            <span className="text-gray-500 text-sm">Post your round...</span>
+            <Camera className="w-5 h-5 text-gray-600 ml-auto" />
+          </button>
+        ) : (
+          <div className="mb-6 bg-dark-800 rounded-2xl border border-dark-700 overflow-hidden">
+            {/* Composer header */}
+            <div className="px-5 pt-5 pb-3 flex items-center justify-between">
+              <h3 className="font-semibold text-white">Post a Round</h3>
+              <button onClick={resetComposer} className="text-gray-500 hover:text-white p-1">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="px-5 pb-5 space-y-4">
+              {/* Course search */}
+              {selectedCourse ? (
+                <div className="flex items-center justify-between bg-emerald-900/20 border border-emerald-800/40 rounded-xl px-4 py-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-lg bg-emerald-600/20 flex items-center justify-center">
+                      <MapPin className="w-4 h-4 text-emerald-400" />
+                    </div>
+                    <div>
+                      <p className="font-medium text-white text-sm">
+                        {selectedCourse.parent_club ? `${selectedCourse.parent_club} - ` : ''}
+                        {selectedCourse.name}
+                      </p>
+                      {selectedCourse.city && (
+                        <p className="text-xs text-gray-500">{selectedCourse.city}, {selectedCourse.state}</p>
+                      )}
+                    </div>
+                  </div>
+                  <button onClick={() => { setSelectedCourse(null); setCourseSearch('') }} className="text-gray-500 hover:text-white">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              ) : (
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                  <input
+                    type="text"
+                    value={courseSearch}
+                    onChange={e => setCourseSearch(e.target.value)}
+                    placeholder="Search for a course..."
+                    autoFocus
+                    className="w-full pl-10 pr-4 py-3 bg-dark-700 border border-dark-600 rounded-xl text-gray-100 placeholder-gray-500 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-sm"
                   />
-                ) : (
-                  <span className="text-emerald-700 font-semibold text-xs">
-                    {(profile || user)?.full_name?.charAt(0)?.toUpperCase() || '?'}
-                  </span>
+                  {courses.length > 0 && (
+                    <div className="absolute z-10 w-full mt-1 bg-dark-700 border border-dark-600 rounded-xl shadow-2xl max-h-48 overflow-y-auto">
+                      {courses.map(course => (
+                        <button
+                          key={course.id}
+                          onClick={() => { setSelectedCourse(course); setCourseSearch(''); setCourses([]) }}
+                          className="w-full text-left px-4 py-3 hover:bg-dark-600 transition-colors first:rounded-t-xl last:rounded-b-xl flex items-center gap-3"
+                        >
+                          <MapPin className="w-4 h-4 text-emerald-500 flex-shrink-0" />
+                          <div>
+                            <span className="text-gray-100 text-sm font-medium">
+                              {course.parent_club ? `${course.parent_club} - ` : ''}{course.name}
+                            </span>
+                            {course.city && (
+                              <span className="text-gray-500 text-xs ml-2">{course.city}, {course.state}</span>
+                            )}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Score input */}
+              <div className="flex items-center gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase tracking-wide">Score</label>
+                  <input
+                    type="number"
+                    value={score}
+                    onChange={e => setScore(e.target.value)}
+                    placeholder="--"
+                    min="40"
+                    max="200"
+                    className="w-24 text-center text-3xl font-black bg-dark-700 border border-dark-600 rounded-xl py-2.5 text-white placeholder-gray-700 focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
+                {scoreDiff !== null && !isNaN(scoreDiff) && (
+                  <div className="pt-5">
+                    <span className={`text-lg font-bold px-3 py-1.5 rounded-full ${
+                      scoreDiff < 0 ? 'bg-emerald-900/50 text-emerald-400' :
+                      scoreDiff === 0 ? 'bg-emerald-900/50 text-emerald-400' :
+                      scoreDiff <= 10 ? 'bg-yellow-900/50 text-yellow-400' :
+                      'bg-red-900/50 text-red-400'
+                    }`}>
+                      {scoreDiff === 0 ? 'Even' : scoreDiff < 0 ? `${scoreDiff}` : `+${scoreDiff}`}
+                    </span>
+                    {selectedCourse?.par && <span className="text-xs text-gray-600 ml-2">Par {selectedCourse.par}</span>}
+                  </div>
                 )}
               </div>
+
+              {/* Vibe selector */}
+              <div className="flex gap-2">
+                {VIBES.map(v => (
+                  <button
+                    key={v.emoji}
+                    type="button"
+                    onClick={() => { setVibe(vibe === v.emoji ? null : v.emoji); hapticLight() }}
+                    className={`flex-1 flex flex-col items-center gap-0.5 py-2 rounded-xl transition-all text-center ${
+                      vibe === v.emoji
+                        ? 'bg-emerald-900/40 ring-2 ring-emerald-500 scale-[1.03]'
+                        : 'bg-dark-700 hover:bg-dark-600'
+                    }`}
+                  >
+                    <span className="text-lg">{v.emoji}</span>
+                    <span className="text-[10px] text-gray-500 font-medium">{v.label}</span>
+                  </button>
+                ))}
+              </div>
+
+              {/* Caption */}
               <input
                 type="text"
-                value={newPostContent}
-                onChange={e => setNewPostContent(e.target.value)}
-                placeholder="Share a thought..."
-                className="flex-1 bg-dark-700 rounded-xl px-4 py-2 text-sm text-gray-100 placeholder-gray-500 focus:ring-2 focus:ring-emerald-500 focus:bg-dark-600 transition-colors border-0"
+                value={caption}
+                onChange={e => setCaption(e.target.value)}
+                placeholder="Add a caption... (optional)"
+                maxLength={280}
+                className="w-full px-4 py-2.5 bg-dark-700 border border-dark-600 rounded-xl text-gray-100 placeholder-gray-500 focus:ring-2 focus:ring-emerald-500 text-sm"
               />
-              <div className="flex items-center gap-1">
+
+              {/* Image preview */}
+              {imagePreview && (
+                <div className="relative inline-block">
+                  <img src={imagePreview} alt="Preview" className="max-h-40 rounded-xl object-cover" />
+                  <button onClick={clearImage} className="absolute top-2 right-2 bg-black/60 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-black/80">
+                    &times;
+                  </button>
+                </div>
+              )}
+
+              {postError && (
+                <div className="bg-red-900/30 border border-red-800/50 text-red-300 text-sm px-3 py-2 rounded-xl">
+                  {postError}
+                </div>
+              )}
+
+              {/* Actions */}
+              <div className="flex items-center justify-between pt-1">
                 {useNativeCamera ? (
-                  <button
-                    type="button"
-                    onClick={handleNativeImageSelect}
-                    className="p-2 text-gray-500 hover:text-emerald-400 rounded-lg hover:bg-emerald-900/30 transition-colors"
-                  >
-                    <ImageIcon className="w-4 h-4" />
+                  <button onClick={handleNativeImageSelect} className="inline-flex items-center gap-2 text-gray-400 hover:text-emerald-400 transition-colors px-3 py-1.5 rounded-lg hover:bg-emerald-900/20">
+                    <Camera className="w-5 h-5" />
+                    <span className="text-sm font-medium">Photo</span>
                   </button>
                 ) : (
-                  <label className="p-2 text-gray-500 hover:text-emerald-400 cursor-pointer rounded-lg hover:bg-emerald-900/30 transition-colors">
-                    <ImageIcon className="w-4 h-4" />
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept="image/*"
-                      onChange={handleImageSelect}
-                      className="hidden"
-                    />
+                  <label className="inline-flex items-center gap-2 text-gray-400 hover:text-emerald-400 cursor-pointer transition-colors px-3 py-1.5 rounded-lg hover:bg-emerald-900/20">
+                    <ImageIcon className="w-5 h-5" />
+                    <span className="text-sm font-medium">Photo</span>
+                    <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageSelect} className="hidden" />
                   </label>
                 )}
                 <button
-                  type="submit"
-                  disabled={submitting || (!newPostContent.trim() && !imageFile)}
-                  className="p-2 text-emerald-500 hover:text-emerald-400 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                  onClick={handleSubmitRound}
+                  disabled={!selectedCourse || !score || submitting}
+                  className="inline-flex items-center gap-2 bg-emerald-600 text-white px-5 py-2.5 rounded-xl font-semibold text-sm hover:bg-emerald-500 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                 >
                   <Send className="w-4 h-4" />
+                  {submitting ? 'Posting...' : 'Post'}
                 </button>
               </div>
             </div>
-
-            {imagePreview && (
-              <div className="mt-3 ml-11 relative inline-block">
-                <img
-                  src={imagePreview}
-                  alt="Preview"
-                  className="max-h-32 rounded-xl object-cover"
-                />
-                <button
-                  type="button"
-                  onClick={clearImage}
-                  className="absolute top-1 right-1 bg-black/60 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs hover:bg-black/80"
-                >
-                  &times;
-                </button>
-              </div>
-            )}
-
-            {postError && (
-              <div className="mt-2 ml-11 bg-red-900/30 border border-red-800/50 text-red-300 text-sm px-3 py-2 rounded-xl">
-                {postError}
-              </div>
-            )}
-          </form>
-        )}
-
-        {/* Daily Golf Joke */}
-        <div className="mb-6">
-          <DailyDadJoke variant="banner" />
-        </div>
-
-        {/* Leaderboard + Hot Courses */}
-        {!loading && posts.length > 0 && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-            <LeaderboardWidget posts={posts} />
-            <HotCoursesWidget posts={posts} />
           </div>
         )}
 
-        {/* Posts List */}
+        {/* Feed */}
         {loading ? (
           <div className="space-y-4">
             {[1, 2, 3].map(i => (
-              <div
-                key={i}
-                className="bg-dark-800 rounded-2xl shadow-sm border border-dark-700 p-5 animate-pulse"
-              >
+              <div key={i} className="bg-dark-800 rounded-2xl border border-dark-700 p-5 animate-pulse">
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="w-10 h-10 rounded-full bg-dark-700" />
+                  <div className="w-11 h-11 rounded-full bg-dark-700" />
                   <div className="space-y-2">
                     <div className="h-4 w-28 bg-dark-700 rounded" />
                     <div className="h-3 w-16 bg-dark-700 rounded" />
                   </div>
                 </div>
-                <div className="h-4 w-full bg-dark-700 rounded mb-2" />
+                <div className="h-20 w-full bg-dark-700 rounded-xl mb-3" />
                 <div className="h-4 w-2/3 bg-dark-700 rounded" />
               </div>
             ))}
           </div>
         ) : posts.length === 0 ? (
-          <div className="text-center py-16">
-            <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <MessageCircle className="w-8 h-8 text-emerald-600" />
-            </div>
-            <h3 className="text-lg font-semibold text-white mb-1">
-              No posts yet
-            </h3>
-            <p className="text-gray-400">
-              Tap &quot;I Played!&quot; to post your first round!
-            </p>
+          <div className="text-center py-20">
+            <div className="text-5xl mb-4">{'\u26F3'}</div>
+            <h3 className="text-lg font-semibold text-white mb-1">No rounds posted yet</h3>
+            <p className="text-gray-500 text-sm">Be the first to share a round.</p>
           </div>
         ) : (
           <div className="space-y-4">
-            {posts.map(post => (
-              <div
-                key={post.id}
-                className="bg-dark-800 rounded-2xl shadow-sm border border-dark-700 overflow-hidden"
-              >
-                {/* Post Header */}
-                <div className="p-5 pb-0">
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0 overflow-hidden">
-                      {post.profiles?.avatar_url ? (
-                        <img
-                          src={post.profiles.avatar_url}
-                          alt={post.profiles.full_name}
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <span className="text-emerald-700 font-semibold text-sm">
-                          {post.profiles?.full_name?.charAt(0)?.toUpperCase() || '?'}
-                        </span>
-                      )}
-                    </div>
-                    <div>
-                      <p className="font-semibold text-white text-sm">
-                        {post.profiles?.full_name || 'Unknown'}
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        {formatDistanceToNow(new Date(post.created_at), { addSuffix: true })}
-                      </p>
-                    </div>
-                    {post.rounds && (
-                      <span className="ml-auto text-xs font-medium text-emerald-400 bg-emerald-900/30 px-2 py-0.5 rounded-full">
-                        Round
-                      </span>
-                    )}
-                  </div>
+            {posts.map(post => {
+              const round = post.rounds
+              const course = round?.courses
+              const diff = round?.score != null && course?.par ? round.score - course.par : null
+              const hasImage = post.image_urls && post.image_urls.length > 0
 
-                  {/* Round Scorecard (for round-linked posts) */}
-                  {post.rounds && <RoundCard post={post} />}
-
-                  {/* Content */}
-                  {post.content && (
-                    <p className="text-gray-100 leading-relaxed mb-3 whitespace-pre-wrap">
-                      {post.content}
-                    </p>
-                  )}
-
-                </div>
-
-                {/* Post Image */}
-                {post.image_urls && post.image_urls.length > 0 && (
-                  <div className="mt-2">
+              return (
+                <div key={post.id} className="bg-dark-800 rounded-2xl border border-dark-700 overflow-hidden">
+                  {/* Post image (full-bleed at top if present) */}
+                  {hasImage && (
                     <img
                       src={post.image_urls[0]}
-                      alt="Post image"
-                      className="w-full max-h-96 object-cover"
+                      alt="Round photo"
+                      className="w-full max-h-80 object-cover"
+                    />
+                  )}
+
+                  <div className="p-5">
+                    {/* Author row */}
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="w-11 h-11 rounded-full bg-emerald-600/20 flex items-center justify-center flex-shrink-0 overflow-hidden">
+                        {post.profiles?.avatar_url ? (
+                          <img src={post.profiles.avatar_url} alt={post.profiles.full_name} className="w-full h-full object-cover" />
+                        ) : (
+                          <span className="text-emerald-400 font-semibold text-sm">
+                            {post.profiles?.full_name?.charAt(0)?.toUpperCase() || '?'}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-white text-sm">{post.profiles?.full_name || 'Unknown'}</p>
+                        <p className="text-xs text-gray-500">
+                          {formatDistanceToNow(new Date(post.created_at), { addSuffix: true })}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Round scorecard */}
+                    {round && (
+                      <div className="bg-dark-700/50 rounded-xl p-4 mb-4">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-8 h-8 rounded-lg bg-emerald-600/20 flex items-center justify-center">
+                              <MapPin className="w-4 h-4 text-emerald-400" />
+                            </div>
+                            <div>
+                              <p className="text-white font-medium text-sm">
+                                {course?.parent_club ? `${course.parent_club} - ` : ''}
+                                {course?.name || 'Unknown Course'}
+                              </p>
+                              {course?.city && (
+                                <p className="text-xs text-gray-500">{course.city}, {course.state}</p>
+                              )}
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-3xl font-black text-white leading-none">{round.score ?? '--'}</div>
+                            {diff !== null && (
+                              <span className={`text-xs font-bold ${
+                                diff <= 0 ? 'text-emerald-400' : diff <= 10 ? 'text-yellow-400' : 'text-red-400'
+                              }`}>
+                                {diff === 0 ? 'Even par' : diff < 0 ? `${diff} under` : `+${diff} over`}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Caption */}
+                    {post.content && (
+                      <p className="text-gray-200 text-sm leading-relaxed mb-4 whitespace-pre-wrap">{post.content}</p>
+                    )}
+
+                    {/* Action bar */}
+                    <div className="flex items-center gap-5 pt-2 border-t border-dark-700/50">
+                      <button
+                        onClick={() => toggleLike(post.id)}
+                        className={`inline-flex items-center gap-1.5 text-sm font-medium transition-colors ${
+                          likedPosts.has(post.id) ? 'text-red-500' : 'text-gray-500 hover:text-red-500'
+                        }`}
+                      >
+                        <Heart className={`w-[18px] h-[18px] ${likedPosts.has(post.id) ? 'fill-current' : ''}`} />
+                        {post.likes_count > 0 && <span>{post.likes_count}</span>}
+                      </button>
+                      <button
+                        onClick={() => {
+                          hapticLight()
+                          setExpandedComments(prev => { const next = new Set(prev); next.has(post.id) ? next.delete(post.id) : next.add(post.id); return next })
+                        }}
+                        className={`inline-flex items-center gap-1.5 text-sm font-medium transition-colors ${
+                          expandedComments.has(post.id) ? 'text-emerald-500' : 'text-gray-500 hover:text-emerald-500'
+                        }`}
+                      >
+                        <MessageCircle className={`w-[18px] h-[18px] ${expandedComments.has(post.id) ? 'fill-current' : ''}`} />
+                        {post.comments_count > 0 && <span>{post.comments_count}</span>}
+                      </button>
+                      <button
+                        onClick={() => handleSharePost(post)}
+                        className="inline-flex items-center gap-1.5 text-sm font-medium text-gray-500 hover:text-blue-400 transition-colors ml-auto"
+                      >
+                        <Share2 className="w-[18px] h-[18px]" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Golf reactions */}
+                  <div className="px-5 pb-4">
+                    <GolfReactionPicker
+                      reactions={getReactionsForPost(post.id)}
+                      onReact={(r) => addReaction(post.id, r.emoji)}
+                      onRemoveReaction={(emoji) => removeReaction(post.id, emoji)}
                     />
                   </div>
-                )}
 
-                {/* Actions */}
-                <div className="px-5 py-3 flex items-center gap-6 border-t border-dark-700">
-                  <button
-                    onClick={() => toggleLike(post.id)}
-                    className={`inline-flex items-center gap-1.5 text-sm font-medium transition-colors ${
-                      likedPosts.has(post.id)
-                        ? 'text-red-500'
-                        : 'text-gray-400 hover:text-red-500'
-                    }`}
-                  >
-                    <Heart
-                      className={`w-5 h-5 ${likedPosts.has(post.id) ? 'fill-current' : ''}`}
+                  {/* Comments */}
+                  {expandedComments.has(post.id) && (
+                    <PostComments
+                      postId={post.id}
+                      userId={userId}
+                      onCountChange={(pid, delta) => {
+                        setPosts(prev => prev.map(p => p.id === pid ? { ...p, comments_count: p.comments_count + delta } : p))
+                      }}
                     />
-                    {post.likes_count > 0 && post.likes_count}
-                  </button>
-                  <button
-                    onClick={() => {
-                      hapticLight()
-                      setExpandedComments(prev => {
-                        const next = new Set(prev)
-                        if (next.has(post.id)) next.delete(post.id)
-                        else next.add(post.id)
-                        return next
-                      })
-                    }}
-                    className={`inline-flex items-center gap-1.5 text-sm font-medium transition-colors ${
-                      expandedComments.has(post.id)
-                        ? 'text-emerald-500'
-                        : 'text-gray-400 hover:text-emerald-600'
-                    }`}
-                  >
-                    <MessageCircle className={`w-5 h-5 ${expandedComments.has(post.id) ? 'fill-current' : ''}`} />
-                    {post.comments_count > 0 && post.comments_count}
-                  </button>
-                  <button
-                    onClick={() => handleSharePost(post)}
-                    className="inline-flex items-center gap-1.5 text-sm font-medium text-gray-400 hover:text-blue-400 transition-colors ml-auto"
-                  >
-                    <Share2 className="w-5 h-5" />
-                  </button>
+                  )}
                 </div>
-
-                {/* Golf Reactions */}
-                <div className="px-5 pb-4">
-                  <GolfReactionPicker
-                    reactions={getReactionsForPost(post.id)}
-                    onReact={(r) => addReaction(post.id, r.emoji)}
-                    onRemoveReaction={(emoji) => removeReaction(post.id, emoji)}
-                  />
-                </div>
-
-                {/* Comments */}
-                {expandedComments.has(post.id) && (
-                  <PostComments
-                    postId={post.id}
-                    userId={userId}
-                    onCountChange={(pid, delta) => {
-                      setPosts(prev => prev.map(p =>
-                        p.id === pid ? { ...p, comments_count: p.comments_count + delta } : p
-                      ))
-                    }}
-                  />
-                )}
-              </div>
-            ))}
+              )
+            })}
           </div>
         )}
       </div>
