@@ -3,6 +3,12 @@ import { createClient as supabaseCreateClient, SupabaseClient } from '@supabase/
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let client: SupabaseClient<any> | undefined
 
+function isCapacitor(): boolean {
+  if (typeof window === 'undefined') return false
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return !!(window as any).Capacitor?.isNativePlatform?.()
+}
+
 export function createClient() {
   if (typeof window === 'undefined') {
     // Server-side: use real Supabase URL directly
@@ -13,12 +19,16 @@ export function createClient() {
     )
   }
   if (client) return client
-  // Client-side: proxy through same domain to bypass ad blockers
-  // Next.js rewrites /supabase/* -> supabase.co/*
-  const proxyUrl = `${window.location.origin}/supabase`
+
+  // Native app: use real Supabase URL (no ad blockers to worry about)
+  // Web: proxy through same domain to bypass ad blockers
+  const url = isCapacitor()
+    ? process.env.NEXT_PUBLIC_SUPABASE_URL!
+    : `${window.location.origin}/supabase`
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   client = supabaseCreateClient<any>(
-    proxyUrl,
+    url,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   )
   return client
