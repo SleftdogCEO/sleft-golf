@@ -53,7 +53,8 @@ function LoginForm() {
           refresh_token: result.session.refresh_token,
         })
         hapticSuccess()
-        router.replace(redirect)
+        // Full page reload to ensure all components pick up the session
+        window.location.replace(redirect)
         return
       }
 

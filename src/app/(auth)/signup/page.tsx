@@ -61,7 +61,7 @@ function SignupForm() {
             refresh_token: loginResult.session.refresh_token,
           })
           hapticSuccess()
-          router.replace(redirect)
+          window.location.replace(redirect)
           return
         }
       }
@@ -85,11 +85,11 @@ function SignupForm() {
           refresh_token: result.session.refresh_token,
         })
         hapticSuccess()
-        router.replace(redirect)
+        window.location.replace(redirect)
         return
       }
 
-      router.replace(redirect)
+      window.location.replace(redirect)
     } catch {
       setError('Something went wrong. Please try again.')
       hapticError()
