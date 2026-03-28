@@ -20,11 +20,8 @@ export function createClient() {
   }
   if (client) return client
 
-  // Native app: use real Supabase URL (no ad blockers to worry about)
-  // Web: proxy through same domain to bypass ad blockers
-  const url = isCapacitor()
-    ? process.env.NEXT_PUBLIC_SUPABASE_URL!
-    : `${window.location.origin}/supabase`
+  // Use real Supabase URL directly everywhere
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL!
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   client = supabaseCreateClient<any>(
