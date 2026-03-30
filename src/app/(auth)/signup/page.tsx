@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, Suspense } from 'react'
-import { useSearchParams, useRouter } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { hapticSuccess, hapticError } from '@/lib/haptics'
@@ -17,7 +17,6 @@ export default function SignupPage() {
 function SignupForm() {
   const searchParams = useSearchParams()
   const redirect = searchParams.get('redirect') || '/feed'
-  const router = useRouter()
   const supabaseRef = useRef(createClient())
   const supabase = supabaseRef.current
 
@@ -32,69 +31,47 @@ function SignupForm() {
     setError('')
     setLoading(true)
 
-    try {
-      const res = await fetch('/api/auth/signup', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password, fullName }),
-      })
+    // Try signup
+    const { error: signupError } = await supabase.auth.signUp({
+      email,
+      password,
+      options: { data: { full_name: fullName } },
+    })
 
-      const result = await res.json()
-
-      if (result.alreadyRegistered) {
-        const loginRes = await fetch('/api/auth/login', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, password }),
+    if (signupError) {
+      // If already registered, try logging in
+      if (signupError.message.includes('already') || signupError.status === 409) {
+        const { error: loginError } = await supabase.auth.signInWithPassword({
+          email,
+          password,
         })
-        const loginResult = await loginRes.json()
-
-        if (!loginRes.ok || loginResult.error) {
+        if (loginError) {
           setError('An account with this email already exists. Try logging in instead.')
           hapticError()
           setLoading(false)
           return
         }
-        if (loginResult.session) {
-          await supabase.auth.setSession({
-            access_token: loginResult.session.access_token,
-            refresh_token: loginResult.session.refresh_token,
-          })
-          hapticSuccess()
-          window.location.replace(redirect)
-          return
-        }
-      }
-
-      if (!res.ok || result.error) {
-        setError(result.error || 'Signup failed. Please try again.')
-        hapticError()
-        setLoading(false)
-        return
-      }
-
-      if (result.user && !result.session) {
-        setError('Check your email to confirm your account, then log in.')
-        setLoading(false)
-        return
-      }
-
-      if (result.session) {
-        await supabase.auth.setSession({
-          access_token: result.session.access_token,
-          refresh_token: result.session.refresh_token,
-        })
         hapticSuccess()
         window.location.replace(redirect)
         return
       }
 
-      window.location.replace(redirect)
-    } catch {
-      setError('Something went wrong. Please try again.')
+      setError(signupError.message)
       hapticError()
       setLoading(false)
+      return
     }
+
+    // Check if we got a session (auto-confirm enabled)
+    const { data: { session } } = await supabase.auth.getSession()
+    if (session) {
+      hapticSuccess()
+      window.location.replace(redirect)
+      return
+    }
+
+    setError('Check your email to confirm your account, then log in.')
+    setLoading(false)
   }
 
   return (

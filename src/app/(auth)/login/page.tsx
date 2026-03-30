@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, Suspense } from 'react'
-import { useSearchParams, useRouter } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { hapticSuccess, hapticError } from '@/lib/haptics'
@@ -17,7 +17,6 @@ export default function LoginPage() {
 function LoginForm() {
   const searchParams = useSearchParams()
   const redirect = searchParams.get('redirect') || '/feed'
-  const router = useRouter()
   const supabaseRef = useRef(createClient())
   const supabase = supabaseRef.current
 
@@ -31,41 +30,20 @@ function LoginForm() {
     setError('')
     setLoading(true)
 
-    try {
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      })
+    const { error: authError } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    })
 
-      const result = await res.json()
-
-      if (!res.ok || result.error) {
-        setError(result.error || 'Login failed. Please try again.')
-        hapticError()
-        setLoading(false)
-        return
-      }
-
-      if (result.session) {
-        await supabase.auth.setSession({
-          access_token: result.session.access_token,
-          refresh_token: result.session.refresh_token,
-        })
-        hapticSuccess()
-        // Full page reload to ensure all components pick up the session
-        window.location.replace(redirect)
-        return
-      }
-
-      setError('Login succeeded but no session was created. Please try again.')
+    if (authError) {
+      setError(authError.message)
       hapticError()
       setLoading(false)
-    } catch {
-      setError('Something went wrong. Please try again.')
-      hapticError()
-      setLoading(false)
+      return
     }
+
+    hapticSuccess()
+    window.location.replace(redirect)
   }
 
   return (
