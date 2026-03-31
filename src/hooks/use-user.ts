@@ -25,7 +25,6 @@ export function useUser() {
       return
     }
 
-    // Profile doesn't exist — create one
     const baseUsername = authUser.email?.split('@')[0] || 'golfer'
     const uniqueUsername = `${baseUsername}_${Date.now().toString(36)}`
     const { data: created, error: createError } = await supabase
@@ -56,7 +55,13 @@ export function useUser() {
     const supabase = supabaseRef.current
     let mounted = true
 
-    // Explicitly read session from localStorage on mount
+    // Safety timeout - never hang forever
+    const timeout = setTimeout(() => {
+      if (mounted && loading) {
+        setLoading(false)
+      }
+    }, 5000)
+
     async function init() {
       try {
         const { data: { session } } = await supabase.auth.getSession()
@@ -77,11 +82,9 @@ export function useUser() {
 
     init()
 
-    // Listen for future auth changes (login, logout, token refresh)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (!mounted) return
-        // Skip INITIAL_SESSION since init() handles it
         if (event === 'INITIAL_SESSION') return
 
         const authUser = session?.user ?? null
@@ -97,6 +100,7 @@ export function useUser() {
 
     return () => {
       mounted = false
+      clearTimeout(timeout)
       subscription.unsubscribe()
     }
   }, [fetchOrCreateProfile])
