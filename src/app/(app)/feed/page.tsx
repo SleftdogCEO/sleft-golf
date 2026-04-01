@@ -13,6 +13,7 @@ import { useUser } from '@/hooks/use-user'
 import { hapticLight, hapticMedium, hapticSuccess } from '@/lib/haptics'
 import { sharePost } from '@/lib/native-share'
 import { takePhoto, isNativePlatform } from '@/lib/native-camera'
+import { RoundRecapCard } from '@/components/round-recap-card'
 
 const VIBES = [
   { emoji: '\u{1F525}', label: 'On Fire' },
@@ -35,6 +36,7 @@ export default function FeedPage() {
   const [postReactions, setPostReactions] = useState<Record<string, Record<string, { count: number; reacted: boolean }>>>({})
   const [expandedComments, setExpandedComments] = useState<Set<string>>(new Set())
   const [useNativeCamera, setUseNativeCamera] = useState(false)
+  const [recapPostId, setRecapPostId] = useState<string | null>(null)
 
   // Composer state
   const [composerOpen, setComposerOpen] = useState(false)
@@ -576,12 +578,23 @@ export default function FeedPage() {
                         <MessageCircle className={`w-[18px] h-[18px] ${expandedComments.has(post.id) ? 'fill-current' : ''}`} />
                         {post.comments_count > 0 && <span>{post.comments_count}</span>}
                       </button>
-                      <button
-                        onClick={() => handleSharePost(post)}
-                        className="inline-flex items-center gap-1.5 text-sm font-medium text-gray-500 hover:text-blue-400 transition-colors ml-auto"
-                      >
-                        <Share2 className="w-[18px] h-[18px]" />
-                      </button>
+                      {round && (
+                        <button
+                          onClick={() => { hapticLight(); setRecapPostId(post.id) }}
+                          className="inline-flex items-center gap-1.5 text-sm font-medium text-gray-500 hover:text-emerald-400 transition-colors ml-auto"
+                        >
+                          <Share2 className="w-[18px] h-[18px]" />
+                          <span>Recap</span>
+                        </button>
+                      )}
+                      {!round && (
+                        <button
+                          onClick={() => handleSharePost(post)}
+                          className="inline-flex items-center gap-1.5 text-sm font-medium text-gray-500 hover:text-blue-400 transition-colors ml-auto"
+                        >
+                          <Share2 className="w-[18px] h-[18px]" />
+                        </button>
+                      )}
                     </div>
                   </div>
 
@@ -610,6 +623,14 @@ export default function FeedPage() {
           </div>
         )}
       </div>
+
+      {/* Round Recap Card modal */}
+      {recapPostId && (() => {
+        const recapPost = posts.find(p => p.id === recapPostId)
+        return recapPost ? (
+          <RoundRecapCard post={recapPost} onClose={() => setRecapPostId(null)} />
+        ) : null
+      })()}
     </div>
   )
 }
