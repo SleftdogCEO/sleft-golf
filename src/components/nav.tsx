@@ -46,7 +46,8 @@ export default function Nav() {
   };
 
   async function handleLogout() {
-    // Clear native session first (most important for iOS)
+    // Clear all session storage
+    localStorage.removeItem('sb-ujlafipkcptwjtsnydcy-auth-token');
     try {
       const { Capacitor } = await import('@capacitor/core');
       if (Capacitor.isNativePlatform()) {
@@ -56,17 +57,15 @@ export default function Nav() {
     } catch {
       // Not native
     }
-    // Clear cookies
     document.cookie.split(';').forEach(c => {
       const name = c.trim().split('=')[0];
       if (name.startsWith('sb-')) {
         document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/`;
       }
     });
-    // Sign out locally (don't await -- redirect immediately)
+    // Fire and forget -- don't wait for these
     supabase.auth.signOut().catch(() => {});
     fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
-    // Hard reload immediately
     window.location.replace("/login");
   }
 

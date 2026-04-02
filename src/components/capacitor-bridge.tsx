@@ -54,16 +54,9 @@ export function CapacitorBridge() {
           const { value: savedSession } = await Preferences.get({ key: 'supabase_session' })
           if (savedSession) {
             const session = JSON.parse(savedSession)
-            const supabase = createClient()
-            const { error } = await supabase.auth.setSession({
-              access_token: session.access_token,
-              refresh_token: session.refresh_token,
-            })
-            // If session is invalid/expired, clear it and go to login
-            if (error) {
-              await Preferences.remove({ key: 'supabase_session' })
-              window.location.replace('/login')
-            }
+            // Write directly to localStorage (skip setSession which makes cross-origin calls)
+            const storageKey = `sb-ujlafipkcptwjtsnydcy-auth-token`
+            localStorage.setItem(storageKey, JSON.stringify(session))
           }
         } catch {
           // No saved session

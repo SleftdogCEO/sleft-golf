@@ -47,14 +47,12 @@ function LoginForm() {
         return
       }
 
-      // Set session on client-side Supabase instance
       if (result.session) {
-        await supabase.auth.setSession({
-          access_token: result.session.access_token,
-          refresh_token: result.session.refresh_token,
-        })
+        // Write session directly to localStorage where Supabase client expects it
+        const storageKey = `sb-ujlafipkcptwjtsnydcy-auth-token`
+        localStorage.setItem(storageKey, JSON.stringify(result.session))
 
-        // Persist to native storage
+        // Also persist to native storage for Capacitor session restore
         try {
           const { Capacitor } = await import('@capacitor/core')
           if (Capacitor.isNativePlatform()) {

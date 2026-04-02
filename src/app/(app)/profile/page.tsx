@@ -340,10 +340,8 @@ export default function ProfilePage() {
       const res = await fetch('/api/auth/delete-account', { method: 'POST' });
       if (!res.ok) throw new Error('Deletion failed');
 
-      // Sign out client-side
-      await supabase.auth.signOut();
-
-      // Clear native session storage
+      // Clear all session storage
+      localStorage.removeItem('sb-ujlafipkcptwjtsnydcy-auth-token');
       try {
         const { Capacitor } = await import('@capacitor/core');
         if (Capacitor.isNativePlatform()) {
@@ -353,6 +351,7 @@ export default function ProfilePage() {
       } catch {
         // Not native
       }
+      supabase.auth.signOut().catch(() => {});
 
       window.location.replace('/login');
     } catch (err) {

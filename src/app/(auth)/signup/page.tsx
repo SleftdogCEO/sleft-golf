@@ -27,10 +27,10 @@ function SignupForm() {
   const [loading, setLoading] = useState(false)
 
   async function persistAndRedirect(session: { access_token: string; refresh_token: string }) {
-    await supabase.auth.setSession({
-      access_token: session.access_token,
-      refresh_token: session.refresh_token,
-    })
+    // Write directly to localStorage (skip setSession which hangs in WKWebView)
+    const storageKey = `sb-ujlafipkcptwjtsnydcy-auth-token`
+    localStorage.setItem(storageKey, JSON.stringify(session))
+
     try {
       const { Capacitor } = await import('@capacitor/core')
       if (Capacitor.isNativePlatform()) {
