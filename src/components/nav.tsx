@@ -54,6 +54,16 @@ export default function Nav() {
         document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/`;
       }
     });
+    // Clear native session storage
+    try {
+      const { Capacitor } = await import('@capacitor/core');
+      if (Capacitor.isNativePlatform()) {
+        const { Preferences } = await import('@capacitor/preferences');
+        await Preferences.remove({ key: 'supabase_session' });
+      }
+    } catch {
+      // Not native
+    }
     router.replace("/login");
   }
 
