@@ -31,47 +31,82 @@ function SignupForm() {
     setError('')
     setLoading(true)
 
-    // Try signup
-    const { error: signupError } = await supabase.auth.signUp({
-      email,
-      password,
-      options: { data: { full_name: fullName } },
-    })
+    try {
+      const timeout = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Request timed out. Please try again.')), 10000)
+      )
 
-    if (signupError) {
-      // If already registered, try logging in
-      if (signupError.message.includes('already') || signupError.status === 409) {
-        const { error: loginError } = await supabase.auth.signInWithPassword({
+      // Try signup
+      const { data: signupData, error: signupError } = await Promise.race([
+        supabase.auth.signUp({
           email,
           password,
-        })
-        if (loginError) {
-          setError('An account with this email already exists. Try logging in instead.')
-          hapticError()
-          setLoading(false)
+          options: { data: { full_name: fullName } },
+        }),
+        timeout,
+      ])
+
+      if (signupError) {
+        // If already registered, try logging in
+        if (signupError.message.includes('already') || signupError.status === 409) {
+          const { data: loginData, error: loginError } = await Promise.race([
+            supabase.auth.signInWithPassword({ email, password }),
+            timeout,
+          ])
+          if (loginError) {
+            setError('An account with this email already exists. Try logging in instead.')
+            hapticError()
+            setLoading(false)
+            return
+          }
+          if (loginData.session) {
+            await persistNativeSession(loginData.session)
+          }
+          hapticSuccess()
+          window.location.replace(redirect)
           return
         }
+
+        setError(signupError.message)
+        hapticError()
+        setLoading(false)
+        return
+      }
+
+      // Persist session for native app
+      const session = signupData?.session
+      if (session) {
+        await persistNativeSession(session)
         hapticSuccess()
         window.location.replace(redirect)
         return
       }
 
-      setError(signupError.message)
+      setError('Check your email to confirm your account, then log in.')
+      setLoading(false)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Signup failed. Please try again.')
       hapticError()
       setLoading(false)
-      return
     }
+  }
 
-    // Check if we got a session (auto-confirm enabled)
-    const { data: { session } } = await supabase.auth.getSession()
-    if (session) {
-      hapticSuccess()
-      window.location.replace(redirect)
-      return
+  async function persistNativeSession(session: { access_token: string; refresh_token: string }) {
+    try {
+      const { Capacitor } = await import('@capacitor/core')
+      if (Capacitor.isNativePlatform()) {
+        const { Preferences } = await import('@capacitor/preferences')
+        await Preferences.set({
+          key: 'supabase_session',
+          value: JSON.stringify({
+            access_token: session.access_token,
+            refresh_token: session.refresh_token,
+          }),
+        })
+      }
+    } catch {
+      // Not native
     }
-
-    setError('Check your email to confirm your account, then log in.')
-    setLoading(false)
   }
 
   return (

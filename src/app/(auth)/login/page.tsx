@@ -30,20 +30,46 @@ function LoginForm() {
     setError('')
     setLoading(true)
 
-    const { error: authError } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    })
+    try {
+      const authPromise = supabase.auth.signInWithPassword({ email, password })
+      const timeout = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Login timed out. Please try again.')), 10000)
+      )
+      const { data, error: authError } = await Promise.race([authPromise, timeout])
 
-    if (authError) {
-      setError(authError.message)
+      if (authError) {
+        setError(authError.message)
+        hapticError()
+        setLoading(false)
+        return
+      }
+
+      // Persist session to native storage before redirecting (WebView may lose it)
+      if (data.session) {
+        try {
+          const { Capacitor } = await import('@capacitor/core')
+          if (Capacitor.isNativePlatform()) {
+            const { Preferences } = await import('@capacitor/preferences')
+            await Preferences.set({
+              key: 'supabase_session',
+              value: JSON.stringify({
+                access_token: data.session.access_token,
+                refresh_token: data.session.refresh_token,
+              }),
+            })
+          }
+        } catch {
+          // Not native, cookies/localStorage will handle it
+        }
+      }
+
+      hapticSuccess()
+      window.location.replace(redirect)
+    } catch (err) {
+      setError('Login failed. Please try again.')
       hapticError()
       setLoading(false)
-      return
     }
-
-    hapticSuccess()
-    window.location.replace(redirect)
   }
 
   return (
