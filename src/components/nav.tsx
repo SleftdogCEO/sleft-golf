@@ -46,15 +46,7 @@ export default function Nav() {
   };
 
   async function handleLogout() {
-    await fetch('/api/auth/logout', { method: 'POST' });
-    await supabase.auth.signOut();
-    document.cookie.split(';').forEach(c => {
-      const name = c.trim().split('=')[0];
-      if (name.startsWith('sb-')) {
-        document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/`;
-      }
-    });
-    // Clear native session storage
+    // Clear native session first (most important for iOS)
     try {
       const { Capacitor } = await import('@capacitor/core');
       if (Capacitor.isNativePlatform()) {
@@ -64,7 +56,17 @@ export default function Nav() {
     } catch {
       // Not native
     }
-    // Hard reload to clear in-memory Supabase session
+    // Clear cookies
+    document.cookie.split(';').forEach(c => {
+      const name = c.trim().split('=')[0];
+      if (name.startsWith('sb-')) {
+        document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/`;
+      }
+    });
+    // Sign out locally (don't await -- redirect immediately)
+    supabase.auth.signOut().catch(() => {});
+    fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
+    // Hard reload immediately
     window.location.replace("/login");
   }
 
