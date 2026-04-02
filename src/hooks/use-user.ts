@@ -3,7 +3,21 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { Profile } from '@/lib/types'
-import type { User } from '@supabase/supabase-js'
+import type { User, Session } from '@supabase/supabase-js'
+
+const STORAGE_KEY = 'sb-ujlafipkcptwjtsnydcy-auth-token'
+
+function getStoredSession(): Session | null {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    if (!raw) return null
+    const session = JSON.parse(raw)
+    if (!session?.access_token || !session?.user) return null
+    return session as Session
+  } catch {
+    return null
+  }
+}
 
 export function useUser() {
   const supabaseRef = useRef(createClient())
@@ -55,7 +69,7 @@ export function useUser() {
     const supabase = supabaseRef.current
     let mounted = true
 
-    // Safety timeout - never hang forever
+    // Safety timeout
     const timeout = setTimeout(() => {
       if (mounted && loading) {
         setLoading(false)
@@ -64,14 +78,21 @@ export function useUser() {
 
     async function init() {
       try {
-        const { data: { session } } = await supabase.auth.getSession()
-        if (!mounted) return
-
-        const authUser = session?.user ?? null
-        setUser(authUser)
-
-        if (authUser) {
-          await fetchOrCreateProfile(authUser)
+        // Read session from localStorage first (avoids cross-origin getSession call)
+        const stored = getStoredSession()
+        if (stored?.user) {
+          if (!mounted) return
+          setUser(stored.user)
+          await fetchOrCreateProfile(stored.user)
+        } else {
+          // Fallback: try Supabase SDK (works on web, may hang on native)
+          const { data: { session } } = await supabase.auth.getSession()
+          if (!mounted) return
+          const authUser = session?.user ?? null
+          setUser(authUser)
+          if (authUser) {
+            await fetchOrCreateProfile(authUser)
+          }
         }
       } catch (err) {
         console.error('Auth init error:', err)
