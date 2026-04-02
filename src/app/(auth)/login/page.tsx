@@ -31,21 +31,30 @@ function LoginForm() {
     setLoading(true)
 
     try {
-      const authPromise = supabase.auth.signInWithPassword({ email, password })
-      const timeout = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('Login timed out. Please try again.')), 10000)
-      )
-      const { data, error: authError } = await Promise.race([authPromise, timeout])
+      // Use same-origin API route instead of direct Supabase call (WKWebView blocks cross-origin)
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      })
 
-      if (authError) {
-        setError(authError.message)
+      const result = await res.json()
+
+      if (!res.ok || result.error) {
+        setError(result.error || 'Invalid login credentials')
         hapticError()
         setLoading(false)
         return
       }
 
-      // Persist session to native storage before redirecting (WebView may lose it)
-      if (data.session) {
+      // Set session on client-side Supabase instance
+      if (result.session) {
+        await supabase.auth.setSession({
+          access_token: result.session.access_token,
+          refresh_token: result.session.refresh_token,
+        })
+
+        // Persist to native storage
         try {
           const { Capacitor } = await import('@capacitor/core')
           if (Capacitor.isNativePlatform()) {
@@ -53,19 +62,19 @@ function LoginForm() {
             await Preferences.set({
               key: 'supabase_session',
               value: JSON.stringify({
-                access_token: data.session.access_token,
-                refresh_token: data.session.refresh_token,
+                access_token: result.session.access_token,
+                refresh_token: result.session.refresh_token,
               }),
             })
           }
         } catch {
-          // Not native, cookies/localStorage will handle it
+          // Not native
         }
       }
 
       hapticSuccess()
       window.location.replace(redirect)
-    } catch (err) {
+    } catch {
       setError('Login failed. Please try again.')
       hapticError()
       setLoading(false)

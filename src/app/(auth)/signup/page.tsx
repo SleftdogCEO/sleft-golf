@@ -26,72 +26,11 @@ function SignupForm() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    setError('')
-    setLoading(true)
-
-    try {
-      const timeout = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('Request timed out. Please try again.')), 10000)
-      )
-
-      // Try signup
-      const { data: signupData, error: signupError } = await Promise.race([
-        supabase.auth.signUp({
-          email,
-          password,
-          options: { data: { full_name: fullName } },
-        }),
-        timeout,
-      ])
-
-      if (signupError) {
-        // If already registered, try logging in
-        if (signupError.message.includes('already') || signupError.status === 409) {
-          const { data: loginData, error: loginError } = await Promise.race([
-            supabase.auth.signInWithPassword({ email, password }),
-            timeout,
-          ])
-          if (loginError) {
-            setError('An account with this email already exists. Try logging in instead.')
-            hapticError()
-            setLoading(false)
-            return
-          }
-          if (loginData.session) {
-            await persistNativeSession(loginData.session)
-          }
-          hapticSuccess()
-          window.location.replace(redirect)
-          return
-        }
-
-        setError(signupError.message)
-        hapticError()
-        setLoading(false)
-        return
-      }
-
-      // Persist session for native app
-      const session = signupData?.session
-      if (session) {
-        await persistNativeSession(session)
-        hapticSuccess()
-        window.location.replace(redirect)
-        return
-      }
-
-      setError('Check your email to confirm your account, then log in.')
-      setLoading(false)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Signup failed. Please try again.')
-      hapticError()
-      setLoading(false)
-    }
-  }
-
-  async function persistNativeSession(session: { access_token: string; refresh_token: string }) {
+  async function persistAndRedirect(session: { access_token: string; refresh_token: string }) {
+    await supabase.auth.setSession({
+      access_token: session.access_token,
+      refresh_token: session.refresh_token,
+    })
     try {
       const { Capacitor } = await import('@capacitor/core')
       if (Capacitor.isNativePlatform()) {
@@ -106,6 +45,64 @@ function SignupForm() {
       }
     } catch {
       // Not native
+    }
+    hapticSuccess()
+    window.location.replace(redirect)
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setError('')
+    setLoading(true)
+
+    try {
+      // Use same-origin API route (WKWebView blocks cross-origin Supabase calls)
+      const res = await fetch('/api/auth/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password, fullName }),
+      })
+
+      const result = await res.json()
+
+      // Already registered -- try logging in instead
+      if (res.status === 409) {
+        const loginRes = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password }),
+        })
+        const loginResult = await loginRes.json()
+        if (!loginRes.ok || loginResult.error) {
+          setError('An account with this email already exists. Try logging in instead.')
+          hapticError()
+          setLoading(false)
+          return
+        }
+        if (loginResult.session) {
+          await persistAndRedirect(loginResult.session)
+          return
+        }
+      }
+
+      if (!res.ok || result.error) {
+        setError(result.error || 'Signup failed')
+        hapticError()
+        setLoading(false)
+        return
+      }
+
+      if (result.session) {
+        await persistAndRedirect(result.session)
+        return
+      }
+
+      setError('Check your email to confirm your account, then log in.')
+      setLoading(false)
+    } catch {
+      setError('Signup failed. Please try again.')
+      hapticError()
+      setLoading(false)
     }
   }
 
