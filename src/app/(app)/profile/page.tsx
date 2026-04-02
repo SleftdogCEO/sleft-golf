@@ -336,8 +336,13 @@ export default function ProfilePage() {
     hapticError();
 
     try {
-      // Server-side deletion (uses service role to delete auth user, FK cascades handle data)
-      const res = await fetch('/api/auth/delete-account', { method: 'POST' });
+      // Send access token since native app doesn't have cookies
+      const stored = localStorage.getItem('sb-ujlafipkcptwjtsnydcy-auth-token');
+      const token = stored ? JSON.parse(stored)?.access_token : null;
+      const res = await fetch('/api/auth/delete-account', {
+        method: 'POST',
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+      });
       if (!res.ok) throw new Error('Deletion failed');
 
       // Clear all session storage
