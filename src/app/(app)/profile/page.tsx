@@ -45,7 +45,8 @@ interface ProfileForm {
 }
 
 export default function ProfilePage() {
-  const supabase = createClient();
+  const supabaseRef = useRef(createClient());
+  const supabase = supabaseRef.current;
   const router = useRouter();
   const { userId, loading: authLoading } = useUser();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -90,12 +91,20 @@ export default function ProfilePage() {
     setLoading(true);
     setFetchError(null);
 
+    // Never hang longer than 8 seconds (covers iOS WebView slowness)
+    const timeout = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('Profile load timed out')), 8000)
+    );
+
     try {
-      const { data: profileData, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .single();
+      const { data: profileData, error } = await Promise.race([
+        supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', userId)
+          .single(),
+        timeout,
+      ]);
 
       if (error && error.code !== 'PGRST116') {
         throw new Error(error.message);
@@ -157,7 +166,7 @@ export default function ProfilePage() {
     } finally {
       setLoading(false);
     }
-  }, [supabase, userId]);
+  }, [userId]);
 
   const fetchTabData = useCallback(async () => {
     if (!userId) return;
@@ -188,7 +197,7 @@ export default function ProfilePage() {
     } catch (err) {
       console.error('Tab data fetch error:', err);
     }
-  }, [supabase, activeTab, userId]);
+  }, [activeTab, userId]);
 
   useEffect(() => {
     if (!authLoading) {
@@ -327,16 +336,11 @@ export default function ProfilePage() {
     hapticError();
 
     try {
-      // Delete profile data
-      await supabase.from('posts').delete().eq('user_id', userId);
-      await supabase.from('rounds').delete().eq('user_id', userId);
-      await supabase.from('likes').delete().eq('user_id', userId);
-      await supabase.from('player_reviews').delete().eq('reviewer_id', userId);
-      await supabase.from('player_reviews').delete().eq('reviewee_id', userId);
-      await supabase.from('profiles').delete().eq('id', userId);
+      // Server-side deletion (uses service role to delete auth user, FK cascades handle data)
+      const res = await fetch('/api/auth/delete-account', { method: 'POST' });
+      if (!res.ok) throw new Error('Deletion failed');
 
-      // Sign out
-      await fetch('/api/auth/logout', { method: 'POST' });
+      // Sign out client-side
       await supabase.auth.signOut();
 
       // Clear native session storage
