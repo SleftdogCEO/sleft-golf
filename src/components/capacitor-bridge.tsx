@@ -55,10 +55,15 @@ export function CapacitorBridge() {
           if (savedSession) {
             const session = JSON.parse(savedSession)
             const supabase = createClient()
-            await supabase.auth.setSession({
+            const { error } = await supabase.auth.setSession({
               access_token: session.access_token,
               refresh_token: session.refresh_token,
             })
+            // If session is invalid/expired, clear it and go to login
+            if (error) {
+              await Preferences.remove({ key: 'supabase_session' })
+              window.location.replace('/login')
+            }
           }
         } catch {
           // No saved session

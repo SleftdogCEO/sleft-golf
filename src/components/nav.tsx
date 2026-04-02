@@ -64,7 +64,8 @@ export default function Nav() {
     } catch {
       // Not native
     }
-    router.replace("/login");
+    // Hard reload to clear in-memory Supabase session
+    window.location.replace("/login");
   }
 
   return (

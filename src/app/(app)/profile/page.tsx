@@ -354,7 +354,7 @@ export default function ProfilePage() {
         // Not native
       }
 
-      router.replace('/login');
+      window.location.replace('/login');
     } catch (err) {
       console.error('Account deletion error:', err);
       hapticError();
