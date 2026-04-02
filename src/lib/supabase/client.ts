@@ -20,13 +20,20 @@ export function createClient() {
   }
   if (client) return client
 
-  // Use real Supabase URL directly everywhere
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL!
+  const native = isCapacitor()
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   client = supabaseCreateClient<any>(
     url,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    native ? {
+      auth: {
+        // Disable auto-refresh in native -- it makes cross-origin calls that hang in WKWebView
+        autoRefreshToken: false,
+        detectSessionInUrl: false,
+      }
+    } : undefined
   )
   return client
 }
