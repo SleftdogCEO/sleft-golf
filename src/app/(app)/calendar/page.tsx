@@ -274,137 +274,14 @@ export default function CalendarPage() {
             <h1 className="text-2xl font-bold text-white">The Board</h1>
             <p className="text-gray-500 text-sm">See who's playing. Jump in.</p>
           </div>
-          <button
-            onClick={openForm}
+          <Link
+            href="/propose"
             className="inline-flex items-center gap-1.5 bg-emerald-600 text-white px-4 py-2.5 rounded-xl text-sm font-semibold hover:bg-emerald-500 transition-colors"
           >
             <Plus className="w-4 h-4" />
             Post a Time
-          </button>
+          </Link>
         </div>
-
-        {/* Create Tee Time Form */}
-        {showForm && (
-          <div className="mb-5 bg-dark-800 rounded-2xl border border-dark-700 overflow-hidden">
-            <div className="px-5 pt-5 pb-3 flex items-center justify-between">
-              <h3 className="font-semibold text-white">Post a Tee Time</h3>
-              <button onClick={resetForm} className="text-gray-500 hover:text-white p-1">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="px-5 pb-5 space-y-4">
-              {/* Course search */}
-              {selectedCourse ? (
-                <div className="flex items-center justify-between bg-emerald-900/20 border border-emerald-800/40 rounded-xl px-4 py-3">
-                  <div className="flex items-center gap-2.5">
-                    <MapPin className="w-4 h-4 text-emerald-400" />
-                    <div>
-                      <p className="font-medium text-white text-sm">
-                        {selectedCourse.parent_club ? `${selectedCourse.parent_club} - ` : ''}{selectedCourse.name}
-                      </p>
-                      {selectedCourse.city && <p className="text-xs text-gray-500">{selectedCourse.city}, {selectedCourse.state}</p>}
-                    </div>
-                  </div>
-                  <button onClick={() => { setSelectedCourse(null); setCourseSearch('') }} className="text-gray-500 hover:text-white">
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-              ) : (
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-                  <input
-                    type="text"
-                    value={courseSearch}
-                    onChange={e => setCourseSearch(e.target.value)}
-                    placeholder="Search for a course..."
-                    autoFocus
-                    className="w-full pl-10 pr-4 py-3 bg-dark-700 border border-dark-600 rounded-xl text-gray-100 placeholder-gray-500 focus:ring-2 focus:ring-emerald-500 text-sm"
-                  />
-                  {courses.length > 0 && (
-                    <div className="absolute z-10 w-full mt-1 bg-dark-700 border border-dark-600 rounded-xl shadow-2xl max-h-48 overflow-y-auto">
-                      {courses.map(course => (
-                        <button
-                          key={course.id}
-                          onClick={() => { setSelectedCourse(course); setCourseSearch(''); setCourses([]) }}
-                          className="w-full text-left px-4 py-3 hover:bg-dark-600 transition-colors first:rounded-t-xl last:rounded-b-xl flex items-center gap-3"
-                        >
-                          <MapPin className="w-4 h-4 text-emerald-500 flex-shrink-0" />
-                          <div>
-                            <span className="text-gray-100 text-sm font-medium">
-                              {course.parent_club ? `${course.parent_club} - ` : ''}{course.name}
-                            </span>
-                            {course.city && <span className="text-gray-500 text-xs ml-2">{course.city}, {course.state}</span>}
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Date + Time + Players row */}
-              <div className="grid grid-cols-3 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase tracking-wide">Date</label>
-                  <input
-                    type="date"
-                    value={teeDateStr}
-                    onChange={e => setTeeDateStr(e.target.value)}
-                    min={format(new Date(), 'yyyy-MM-dd')}
-                    className="w-full px-3 py-2.5 bg-dark-700 border border-dark-600 rounded-xl text-gray-100 text-sm focus:ring-2 focus:ring-emerald-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase tracking-wide">Time</label>
-                  <input
-                    type="time"
-                    value={teeTimeStr}
-                    onChange={e => setTeeTimeStr(e.target.value)}
-                    className="w-full px-3 py-2.5 bg-dark-700 border border-dark-600 rounded-xl text-gray-100 text-sm focus:ring-2 focus:ring-emerald-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase tracking-wide">Players</label>
-                  <select
-                    value={maxPlayers}
-                    onChange={e => setMaxPlayers(e.target.value)}
-                    className="w-full px-3 py-2.5 bg-dark-700 border border-dark-600 rounded-xl text-gray-100 text-sm focus:ring-2 focus:ring-emerald-500"
-                  >
-                    <option value="2">2</option>
-                    <option value="3">3</option>
-                    <option value="4">4</option>
-                    <option value="5">5</option>
-                    <option value="6">6</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Optional title */}
-              <input
-                type="text"
-                value={formTitle}
-                onChange={e => setFormTitle(e.target.value)}
-                placeholder="Title (optional, e.g. 'Saturday morning round')"
-                maxLength={100}
-                className="w-full px-4 py-2.5 bg-dark-700 border border-dark-600 rounded-xl text-gray-100 placeholder-gray-500 focus:ring-2 focus:ring-emerald-500 text-sm"
-              />
-
-              {formError && (
-                <div className="bg-red-900/30 border border-red-800/50 text-red-300 text-sm px-3 py-2 rounded-xl">{formError}</div>
-              )}
-
-              <button
-                onClick={handleCreateTeeTime}
-                disabled={!selectedCourse || !teeTimeStr || !teeDateStr || submitting}
-                className="w-full inline-flex items-center justify-center gap-2 bg-emerald-600 text-white py-3 rounded-xl font-semibold text-sm hover:bg-emerald-500 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-              >
-                <Send className="w-4 h-4" />
-                {submitting ? 'Posting...' : 'Post Tee Time'}
-              </button>
-            </div>
-          </div>
-        )}
 
         {/* Date Strip */}
         <div className="mb-5">
@@ -495,13 +372,13 @@ export default function CalendarPage() {
             </div>
             <h3 className="text-base font-semibold text-white mb-1">No tee times</h3>
             <p className="text-sm text-gray-500 mb-5">No one has posted a tee time for this day yet.</p>
-            <button
-              onClick={openForm}
+            <Link
+              href="/propose"
               className="inline-flex items-center gap-2 bg-emerald-600 text-white px-5 py-2.5 rounded-xl text-sm font-semibold hover:bg-emerald-500 transition-colors"
             >
               <Plus className="w-4 h-4" />
               Be the first
-            </button>
+            </Link>
           </div>
         ) : (
           <div className="space-y-3">
