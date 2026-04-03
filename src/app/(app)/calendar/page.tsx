@@ -129,7 +129,10 @@ export default function CalendarPage() {
   }, [meetups])
 
   function getPlayerCount(meetup: Meetup): number {
-    return 1 + (meetup.meetup_attendees?.length || 0)
+    // Deduplicate: organizer may also be in meetup_attendees
+    const attendeeIds = new Set(meetup.meetup_attendees?.map(a => a.user_id) || [])
+    attendeeIds.add(meetup.organizer_id) // ensure organizer is counted
+    return attendeeIds.size
   }
 
   function getSpotsLeft(meetup: Meetup): number {
@@ -143,10 +146,19 @@ export default function CalendarPage() {
   }
 
   function getAllPlayers(meetup: Meetup): Profile[] {
+    const seen = new Set<string>()
     const players: Profile[] = []
-    if (meetup.profiles) players.push(meetup.profiles)
+    // Add organizer first
+    if (meetup.profiles) {
+      seen.add(meetup.profiles.id)
+      players.push(meetup.profiles)
+    }
+    // Add attendees, skipping organizer duplicate
     for (const a of meetup.meetup_attendees || []) {
-      if (a.profiles) players.push(a.profiles)
+      if (a.profiles && !seen.has(a.profiles.id)) {
+        seen.add(a.profiles.id)
+        players.push(a.profiles)
+      }
     }
     return players
   }
