@@ -278,8 +278,6 @@ export default function ProposePage() {
                           >
                             <MapPin className="w-3 h-3 text-emerald-400" />
                             {c.name}
-                            {tierLabel && <span className={`font-bold ${tierColor} ml-0.5`}>{tierLabel}</span>}
-                            {c.is_private && <span className="text-[10px] text-gray-500 ml-0.5">Private</span>}
                           </button>
                         )
                       })}
@@ -352,9 +350,6 @@ export default function ProposePage() {
                     )}
                     <div className="flex flex-wrap gap-2">
                       {readyData.courses.map((c) => {
-                        const tier = c.price_tier
-                        const tierLabel = tier === 1 ? '$' : tier === 2 ? '$$' : tier === 3 ? '$$$' : tier === 4 ? '$$$$' : null
-                        const tierColor = tier === 1 ? 'text-green-400' : tier === 2 ? 'text-emerald-400' : tier === 3 ? 'text-yellow-400' : tier === 4 ? 'text-orange-400' : ''
                         const isSelected = selectedCourseId ? selectedCourseId === c.id : readyData.courses[0]?.id === c.id
                         return (
                           <button key={c.id} type="button" onClick={() => setSelectedCourseId(c.id)}
@@ -365,8 +360,6 @@ export default function ProposePage() {
                             }`}>
                             <MapPin className="w-3 h-3" />
                             {c.name}
-                            {tierLabel && <span className={`font-bold ${isSelected ? 'text-white/80' : tierColor}`}>{tierLabel}</span>}
-                            {c.is_private && <span className="text-[10px] opacity-70">Private</span>}
                           </button>
                         )
                       })}
