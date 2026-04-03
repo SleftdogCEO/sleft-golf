@@ -186,12 +186,13 @@ export default function ProposePage() {
         .from('meetups')
         .insert({
           title: readyData.title,
-          course_id: course.id || null,
+          course_id: course.id && course.id.length > 10 ? course.id : null,
           tee_time: new Date(teeTime.dateTime).toISOString(),
           max_players: readyData.players + openSpots,
-          description: readyData.times.length > 1
-            ? `Flexible times: ${readyData.times.map(t => t.label).join(', ')}`
-            : null,
+          description: [
+            readyData.times.length > 1 ? `Flexible times: ${readyData.times.map(t => t.label).join(', ')}` : null,
+            !course.id || course.id.length <= 10 ? `Course: ${course.name}` : null,
+          ].filter(Boolean).join('\n') || null,
           organizer_id: userId,
         })
         .select()

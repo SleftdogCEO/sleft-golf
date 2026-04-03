@@ -107,12 +107,13 @@ Rules for TIMES:
 - times = [] when you're still asking questions and don't have enough info yet
 
 Rules for COURSES:
-- When user mentions a location (city, area, neighborhood), suggest courses from the list above that are in or near that area.
-- When user mentions a specific course or club name, match it from the list.
-- Use the exact "id" from the course list. Use a display name like "Club - Course" or just "Course".
+- This app is for golfers ANYWHERE in America, not just one area. NEVER assume a location. Always ask generically: "Where are you looking to play?" or "Any specific course or area in mind?"
+- When user mentions a location, check if any courses from the list match that area. If matches exist, suggest them.
+- If the user mentions a location with NO matching courses in the database, that's OK — use a descriptive name as the course name (e.g. "Course in Austin, TX") and set the course id to "" (empty string). The user can still post a tee time without a database-linked course.
+- When user mentions a specific course or club name, match it from the list if possible. If not in the list, use their stated name with id="".
+- Use the exact "id" from the course list when available. Use a display name like "Club - Course" or just "Course".
 - courses = [] if no location or course info given
-- Only suggest courses that exist in the list above. Never make up courses.
-- IMPORTANT: When suggesting courses for an area, suggest 3-5 courses from DIFFERENT clubs/venues. Do NOT just list multiple courses from the same club. Variety is key — show the user their options across different facilities.
+- IMPORTANT: When suggesting courses for an area, suggest 3-5 courses from DIFFERENT clubs/venues. Do NOT just list multiple courses from the same club. Variety is key.
 - Each course has a price tier: $ (under $50), $$ ($50-100), $$$ ($100-200), $$$$ ($200+/private).
 - If user mentions budget (e.g. "cheap", "affordable", "budget", "nothing too expensive"), prefer $ and $$ courses.
 - If user mentions wanting premium/nice/upscale courses, prefer $$$ and $$$$ courses.
@@ -193,10 +194,16 @@ export async function POST(req: NextRequest) {
     let suggestedCourses: { id: string; name: string; price_tier: number | null; green_fee_estimate: number | null; is_private: boolean }[] = []
     if (Array.isArray(parsed.courses)) {
       suggestedCourses = parsed.courses
-        .filter((c: any) => c.id && courseMap.has(c.id))
+        .filter((c: any) => c.name) // Must have a name at minimum
         .map((c: any) => {
-          const full = courseMap.get(c.id)!
-          return { id: c.id, name: c.name, price_tier: full.price_tier, green_fee_estimate: full.green_fee_estimate, is_private: full.is_private }
+          const full = c.id && courseMap.has(c.id) ? courseMap.get(c.id)! : null
+          return {
+            id: full ? c.id : '',
+            name: c.name,
+            price_tier: full?.price_tier ?? null,
+            green_fee_estimate: full?.green_fee_estimate ?? null,
+            is_private: full?.is_private ?? false,
+          }
         })
     }
 
