@@ -57,7 +57,13 @@ export default function ProposePage() {
   const [postError, setPostError] = useState<string | null>(null)
 
   useEffect(() => {
-    setTimeout(() => chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 100)
+    // Only auto-scroll when there are multiple messages (not on initial load)
+    if (chatMessages.length > 1 || chatLoading || readyData) {
+      setTimeout(() => {
+        const el = chatContainerRef.current
+        if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' })
+      }, 100)
+    }
   }, [chatMessages, chatLoading, readyData])
 
   async function sendMessage(text: string) {
