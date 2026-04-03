@@ -34,20 +34,28 @@ async function getCourses(): Promise<CourseRow[]> {
   return cachedCourses
 }
 
-function buildDateReference(): string {
+function buildDateReference(timezone: string): string {
+  // Use the user's timezone to determine "today"
+  const fmt = (d: Date, opts: Intl.DateTimeFormatOptions) =>
+    d.toLocaleDateString('en-US', { ...opts, timeZone: timezone })
+
   const now = new Date()
+  const todayStr = fmt(now, { year: 'numeric', month: '2-digit', day: '2-digit' })
+  const [m, d, y] = todayStr.split('/')
+  const todayDate = new Date(`${y}-${m}-${d}T12:00:00`)
+
   const lines: string[] = []
   for (let i = 0; i < 14; i++) {
-    const d = new Date(now)
-    d.setDate(d.getDate() + i)
-    const dayName = d.toLocaleDateString('en-US', { weekday: 'long' })
-    const month = d.toLocaleDateString('en-US', { month: 'short' })
-    const day = d.getDate()
-    const yyyy = d.getFullYear()
-    const mm = String(d.getMonth() + 1).padStart(2, '0')
-    const dd = String(d.getDate()).padStart(2, '0')
-    const label = i === 0 ? ' (today)' : i === 1 ? ' (tomorrow)' : ''
-    lines.push(`${dayName}, ${month} ${day}${label} → dateTime: "${yyyy}-${mm}-${dd}"`)
+    const date = new Date(todayDate)
+    date.setDate(date.getDate() + i)
+    const dayName = date.toLocaleDateString('en-US', { weekday: 'long' })
+    const month = date.toLocaleDateString('en-US', { month: 'short' })
+    const dayNum = date.getDate()
+    const yyyy = date.getFullYear()
+    const mm = String(date.getMonth() + 1).padStart(2, '0')
+    const dd = String(date.getDate()).padStart(2, '0')
+    const label = i === 0 ? ' (TODAY - this is today!)' : i === 1 ? ' (tomorrow)' : ''
+    lines.push(`${dayName}, ${month} ${dayNum}${label} → dateTime: "${yyyy}-${mm}-${dd}"`)
   }
   return lines.join('\n')
 }
@@ -63,8 +71,8 @@ function buildCourseReference(courses: CourseRow[]): string {
   }).join('\n')
 }
 
-function buildSystemPrompt(courses: CourseRow[]): string {
-  const dateRef = buildDateReference()
+function buildSystemPrompt(courses: CourseRow[], timezone: string): string {
+  const dateRef = buildDateReference(timezone)
   const courseRef = buildCourseReference(courses)
   const today = new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
 
@@ -134,7 +142,8 @@ General:
 
 export async function POST(req: NextRequest) {
   try {
-    const { messages } = await req.json()
+    const { messages, timezone } = await req.json()
+    const tz = timezone || 'America/New_York'
     const courses = await getCourses()
 
     const response = await openai.chat.completions.create({
@@ -142,7 +151,7 @@ export async function POST(req: NextRequest) {
       max_tokens: 2048,
       response_format: { type: 'json_object' },
       messages: [
-        { role: 'system', content: buildSystemPrompt(courses) },
+        { role: 'system', content: buildSystemPrompt(courses, tz) },
         ...messages.map((m: { role: string; content: string }) => ({
           role: m.role as 'user' | 'assistant',
           content: m.content,

@@ -76,6 +76,7 @@ export default function ProposePage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           messages: updatedMessages.map(m => ({ role: m.role, content: m.content })),
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         }),
       })
 
