@@ -138,7 +138,7 @@ export async function POST(req: NextRequest) {
 
     const response = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
-      max_tokens: 1024,
+      max_tokens: 2048,
       response_format: { type: 'json_object' },
       messages: [
         { role: 'system', content: buildSystemPrompt(courses) },
@@ -150,7 +150,18 @@ export async function POST(req: NextRequest) {
     })
 
     const text = response.choices[0]?.message?.content || '{}'
-    const parsed = JSON.parse(text)
+    let parsed: any
+    try {
+      parsed = JSON.parse(text)
+    } catch {
+      console.error('GPT returned invalid JSON:', text.slice(0, 500))
+      // Try to extract message from partial JSON
+      const msgMatch = text.match(/"message"\s*:\s*"([^"]*)"/)
+      return NextResponse.json({
+        message: msgMatch?.[1] || "Sorry, I got confused. Can you try again?",
+        times: [], courses: [], title: null, players: null,
+      })
+    }
     let times: { dateTime: string; label: string }[] = Array.isArray(parsed.times) ? parsed.times : []
 
     // Server-side exclusion filter: scan ALL user messages for excluded days
