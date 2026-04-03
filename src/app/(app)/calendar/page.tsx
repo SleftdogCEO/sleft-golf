@@ -18,6 +18,8 @@ import {
   X,
   Search,
   Send,
+  Pencil,
+  Trash2,
 } from 'lucide-react'
 import {
   format,
@@ -55,6 +57,14 @@ export default function CalendarPage() {
   const [maxPlayers, setMaxPlayers] = useState('4')
   const [submitting, setSubmitting] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
+  const [deleteId, setDeleteId] = useState<string | null>(null)
+  const [deleting, setDeleting] = useState(false)
+  const [editId, setEditId] = useState<string | null>(null)
+  const [editTitle, setEditTitle] = useState('')
+  const [editDate, setEditDate] = useState('')
+  const [editTime, setEditTime] = useState('')
+  const [editMax, setEditMax] = useState(4)
+  const [saving, setSaving] = useState(false)
 
   // Generate 14 days from offset
   const dates = useMemo(() => {
@@ -90,12 +100,13 @@ export default function CalendarPage() {
     setLoading(true)
     const { data, error } = await supabase
       .from('meetups')
-      .select('*, courses(*), profiles!meetups_organizer_id_fkey(*), meetup_attendees(*, profiles(*))')
+      .select('*, profiles(id, full_name, avatar_url, username, handicap, location), courses(*), meetup_attendees(*, profiles(id, full_name, avatar_url, username, handicap, location))')
       .gte('tee_time', dateRange.start)
       .lte('tee_time', dateRange.end)
       .order('tee_time', { ascending: true })
 
-    if (!error && data) setMeetups(data)
+    if (error) console.error('Calendar fetch error:', error.message)
+    setMeetups(data || [])
     setLoading(false)
   }
 
@@ -151,6 +162,37 @@ export default function CalendarPage() {
     await supabase.from('meetup_attendees').delete().eq('meetup_id', meetupId).eq('user_id', userId)
     await fetchMeetups()
     setJoining(null)
+  }
+
+  async function handleDelete() {
+    if (!deleteId) return
+    setDeleting(true)
+    await supabase.from('meetups').delete().eq('id', deleteId)
+    setDeleteId(null)
+    setDeleting(false)
+    fetchMeetups()
+  }
+
+  function openEdit(meetup: any) {
+    const t = parseISO(meetup.tee_time)
+    setEditId(meetup.id)
+    setEditTitle(meetup.title)
+    setEditDate(format(t, 'yyyy-MM-dd'))
+    setEditTime(format(t, 'HH:mm'))
+    setEditMax(meetup.max_players)
+  }
+
+  async function handleEditSave() {
+    if (!editId || !editTitle.trim() || !editDate || !editTime) return
+    setSaving(true)
+    await supabase.from('meetups').update({
+      title: editTitle.trim(),
+      tee_time: new Date(`${editDate}T${editTime}:00`).toISOString(),
+      max_players: editMax,
+    }).eq('id', editId)
+    setEditId(null)
+    setSaving(false)
+    fetchMeetups()
   }
 
   function openForm() {
@@ -496,9 +538,16 @@ export default function CalendarPage() {
                         )}
                       </div>
 
-                      <div className="flex-shrink-0">
+                      <div className="flex-shrink-0 flex items-center gap-1.5">
                         {isOrganizer && (
-                          <span className="text-[10px] font-semibold text-emerald-400 bg-emerald-900/30 px-2.5 py-1.5 rounded-full">Yours</span>
+                          <>
+                            <button onClick={() => openEdit(meetup)} className="p-1.5 rounded-lg text-gray-500 hover:text-white hover:bg-dark-600 transition-colors" title="Edit">
+                              <Pencil className="w-3.5 h-3.5" />
+                            </button>
+                            <button onClick={() => setDeleteId(meetup.id)} className="p-1.5 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-900/20 transition-colors" title="Delete">
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </>
                         )}
                         {userId && !isOrganizer && isIn && (
                           <button onClick={() => leaveMeetup(meetup.id)} disabled={joining === meetup.id}
@@ -562,6 +611,71 @@ export default function CalendarPage() {
           </div>
         )}
       </div>
+
+      {/* Delete Confirmation */}
+      {deleteId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" onClick={() => !deleting && setDeleteId(null)}>
+          <div className="bg-dark-800 rounded-2xl border border-dark-700 p-6 max-w-sm w-full" onClick={e => e.stopPropagation()}>
+            <h3 className="text-white font-semibold text-lg mb-2">Delete Tee Time?</h3>
+            <p className="text-gray-400 text-sm mb-6">This removes it from The Board. Can&apos;t be undone.</p>
+            <div className="flex gap-3">
+              <button onClick={handleDelete} disabled={deleting} className="flex-1 py-2.5 rounded-xl text-sm font-semibold bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 transition-colors">
+                {deleting ? 'Deleting...' : 'Delete'}
+              </button>
+              <button onClick={() => setDeleteId(null)} disabled={deleting} className="flex-1 py-2.5 rounded-xl text-sm font-medium bg-dark-700 text-gray-300 hover:bg-dark-600 border border-dark-600 transition-colors">
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Modal */}
+      {editId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" onClick={() => !saving && setEditId(null)}>
+          <div className="bg-dark-800 rounded-2xl border border-dark-700 p-6 max-w-sm w-full" onClick={e => e.stopPropagation()}>
+            <h3 className="text-white font-semibold text-lg mb-4">Edit Tee Time</h3>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-400 mb-1">Title</label>
+                <input type="text" value={editTitle} onChange={e => setEditTitle(e.target.value)}
+                  className="w-full bg-dark-700 border border-dark-600 rounded-xl px-4 py-2.5 text-gray-100 text-sm focus:ring-2 focus:ring-emerald-500 outline-none" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-400 mb-1">Date</label>
+                  <input type="date" value={editDate} onChange={e => setEditDate(e.target.value)}
+                    className="w-full bg-dark-700 border border-dark-600 rounded-xl px-3 py-2.5 text-gray-100 text-sm focus:ring-2 focus:ring-emerald-500 outline-none" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-400 mb-1">Time</label>
+                  <input type="time" value={editTime} onChange={e => setEditTime(e.target.value)}
+                    className="w-full bg-dark-700 border border-dark-600 rounded-xl px-3 py-2.5 text-gray-100 text-sm focus:ring-2 focus:ring-emerald-500 outline-none" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-400 mb-1">Max Players</label>
+                <div className="flex gap-2">
+                  {[2, 3, 4, 5, 6].map(n => (
+                    <button key={n} type="button" onClick={() => setEditMax(n)}
+                      className={`flex-1 py-2 rounded-xl text-sm font-medium transition-colors ${editMax === n ? 'bg-emerald-600 text-white' : 'bg-dark-700 text-gray-400 hover:bg-dark-600 border border-dark-600'}`}>
+                      {n}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div className="flex gap-3 mt-5">
+              <button onClick={handleEditSave} disabled={saving || !editTitle.trim()} className="flex-1 py-2.5 rounded-xl text-sm font-semibold bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 transition-colors">
+                {saving ? 'Saving...' : 'Save'}
+              </button>
+              <button onClick={() => setEditId(null)} disabled={saving} className="flex-1 py-2.5 rounded-xl text-sm font-medium bg-dark-700 text-gray-300 hover:bg-dark-600 border border-dark-600 transition-colors">
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
