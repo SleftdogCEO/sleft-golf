@@ -177,10 +177,11 @@ export default function ProposePage() {
         ? readyData.courses.find(c => c.id === selectedCourseId) || readyData.courses[0]
         : readyData.courses[0]
 
-      const res = await fetch('/api/meetups', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      // Use a timeout to prevent infinite hanging
+      const timeoutMs = 10000
+      const insertPromise = supabase
+        .from('meetups')
+        .insert({
           title: readyData.title,
           course_id: course.id || null,
           tee_time: new Date(teeTime.dateTime).toISOString(),
@@ -188,11 +189,25 @@ export default function ProposePage() {
           description: readyData.times.length > 1
             ? `Flexible times: ${readyData.times.map(t => t.label).join(', ')}`
             : null,
-        }),
-      })
+          organizer_id: userId,
+        })
+        .select()
+        .single()
 
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Failed to post')
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Request timed out. Please try again.')), timeoutMs)
+      )
+
+      const { data: newMeetup, error } = await Promise.race([insertPromise, timeoutPromise]) as any
+
+      if (error) throw new Error(error.message || 'Database error')
+      if (!newMeetup) throw new Error('No data returned from insert')
+
+      // Add organizer as attendee (non-blocking)
+      supabase.from('meetup_attendees').insert({
+        meetup_id: newMeetup.id,
+        user_id: userId,
+      })
 
       router.push('/tee-times')
     } catch (err: any) {
@@ -221,20 +236,33 @@ export default function ProposePage() {
 
       const title = `Looking to play ${dayLabel} ${timeLabel} near ${area}`
 
-      const res = await fetch('/api/meetups', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      const timeoutMs = 10000
+      const insertPromise = supabase
+        .from('meetups')
+        .insert({
           title,
           course_id: null,
           tee_time: date.toISOString(),
           max_players: groupSize,
           description: `Area: ${area}\n${profile?.handicap != null ? `Handicap: ${profile.handicap}` : ''}`,
-        }),
-      })
+          organizer_id: userId,
+        })
+        .select()
+        .single()
 
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Failed to post')
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Request timed out. Please try again.')), timeoutMs)
+      )
+
+      const { data: newMeetup, error } = await Promise.race([insertPromise, timeoutPromise]) as any
+
+      if (error) throw new Error(error.message || 'Database error')
+      if (!newMeetup) throw new Error('No data returned from insert')
+
+      supabase.from('meetup_attendees').insert({
+        meetup_id: newMeetup.id,
+        user_id: userId,
+      })
 
       router.push('/tee-times')
     } catch (err: any) {
