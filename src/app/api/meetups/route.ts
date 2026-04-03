@@ -4,22 +4,14 @@ import { createClient } from '@/lib/supabase/server'
 export async function POST(req: NextRequest) {
   try {
     const supabase = await createClient()
-
-    // Check auth
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
-      console.error('Meetup POST auth error:', authError?.message || 'No user')
-      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
-    }
-
     const body = await req.json()
-    const { title, course_id, tee_time, max_players, description } = body
+    const { title, course_id, tee_time, max_players, description, organizer_id } = body
 
-    if (!title || !tee_time) {
-      return NextResponse.json({ error: 'Missing required fields: title, tee_time' }, { status: 400 })
+    if (!title || !tee_time || !organizer_id) {
+      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
 
-    // Create meetup
+    // Create meetup - RLS policy checks auth.uid() = organizer_id
     const { data: meetup, error: meetupError } = await supabase
       .from('meetups')
       .insert({
@@ -28,7 +20,7 @@ export async function POST(req: NextRequest) {
         tee_time,
         max_players: max_players || 4,
         description: description || null,
-        organizer_id: user.id,
+        organizer_id,
       })
       .select()
       .single()
@@ -39,14 +31,9 @@ export async function POST(req: NextRequest) {
     }
 
     // Add organizer as attendee
-    const { error: attendeeError } = await supabase
+    await supabase
       .from('meetup_attendees')
-      .insert({ meetup_id: meetup.id, user_id: user.id })
-
-    if (attendeeError) {
-      console.error('Attendee insert error:', attendeeError.message)
-      // Non-fatal - meetup was created
-    }
+      .insert({ meetup_id: meetup.id, user_id: organizer_id })
 
     return NextResponse.json({ meetup })
   } catch (err: any) {

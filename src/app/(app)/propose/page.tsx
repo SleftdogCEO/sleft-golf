@@ -180,11 +180,10 @@ export default function ProposePage() {
         ? readyData.courses.find(c => c.id === selectedCourseId) || readyData.courses[0]
         : readyData.courses[0]
 
-      // Use a timeout to prevent infinite hanging
-      const timeoutMs = 10000
-      const insertPromise = supabase
-        .from('meetups')
-        .insert({
+      const res = await fetch('/api/meetups', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
           title: readyData.title,
           course_id: course.id && course.id.length > 10 ? course.id : null,
           tee_time: new Date(teeTime.dateTime).toISOString(),
@@ -194,26 +193,13 @@ export default function ProposePage() {
             !course.id || course.id.length <= 10 ? `Course: ${course.name}` : null,
           ].filter(Boolean).join('\n') || null,
           organizer_id: userId,
-        })
-        .select()
-        .single()
-
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Request timed out. Please try again.')), timeoutMs)
-      )
-
-      const { data: newMeetup, error } = await Promise.race([insertPromise, timeoutPromise]) as any
-
-      if (error) throw new Error(error.message || 'Database error')
-      if (!newMeetup) throw new Error('No data returned from insert')
-
-      // Add organizer as attendee
-      await supabase.from('meetup_attendees').insert({
-        meetup_id: newMeetup.id,
-        user_id: userId,
+        }),
       })
 
-      router.push('/tee-times')
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed to post')
+
+      router.push('/calendar')
     } catch (err: any) {
       console.error('Post tee time error:', err)
       setPostError(err?.message || 'Failed to post. Please try again.')
@@ -222,60 +208,6 @@ export default function ProposePage() {
     }
   }
 
-  async function handlePostLooking() {
-    if (!userId || !readyData || posting) return
-    setPosting(true)
-    setPostError(null)
-
-    try {
-      const teeTime = readyData.times[selectedTimeIdx] || readyData.times[0]
-      const date = new Date(teeTime.dateTime)
-      const hour = date.getHours()
-      const timeLabel = hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening'
-      const dayLabel = format(date, 'EEEE')
-      const course = selectedCourseId
-        ? readyData.courses.find(c => c.id === selectedCourseId) || readyData.courses[0]
-        : readyData.courses[0]
-      const area = course?.name?.split(' - ')[0] || 'the area'
-
-      const title = `Looking to play ${dayLabel} ${timeLabel} near ${area}`
-
-      const timeoutMs = 10000
-      const insertPromise = supabase
-        .from('meetups')
-        .insert({
-          title,
-          course_id: null,
-          tee_time: date.toISOString(),
-          max_players: readyData.players + openSpots,
-          description: `Area: ${area}\n${profile?.handicap != null ? `Handicap: ${profile.handicap}` : ''}`,
-          organizer_id: userId,
-        })
-        .select()
-        .single()
-
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Request timed out. Please try again.')), timeoutMs)
-      )
-
-      const { data: newMeetup, error } = await Promise.race([insertPromise, timeoutPromise]) as any
-
-      if (error) throw new Error(error.message || 'Database error')
-      if (!newMeetup) throw new Error('No data returned from insert')
-
-      await supabase.from('meetup_attendees').insert({
-        meetup_id: newMeetup.id,
-        user_id: userId,
-      })
-
-      router.push('/tee-times')
-    } catch (err: any) {
-      console.error('Post looking error:', err)
-      setPostError(err?.message || 'Failed to post. Please try again.')
-    } finally {
-      setPosting(false)
-    }
-  }
 
   return (
     <div className="min-h-screen bg-dark-950">
@@ -340,8 +272,8 @@ export default function ProposePage() {
                           <button
                             key={j}
                             type="button"
-                            onClick={() => { if (!chatLoading && !posting && !readyData) sendMessage(shortName) }}
-                            disabled={chatLoading || posting || !!readyData}
+                            onClick={() => { if (!chatLoading && !posting && !readyData && i === chatMessages.length - 1) sendMessage(shortName) }}
+                            disabled={chatLoading || posting || !!readyData || i !== chatMessages.length - 1}
                             className="inline-flex items-center gap-1.5 bg-dark-700 border border-dark-600 px-2.5 py-1.5 rounded-lg text-xs text-gray-300 hover:bg-emerald-900/30 hover:border-emerald-800/50 hover:text-emerald-400 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-default disabled:hover:bg-dark-700 disabled:hover:border-dark-600 disabled:hover:text-gray-300"
                           >
                             <MapPin className="w-3 h-3 text-emerald-400" />
@@ -480,21 +412,14 @@ export default function ProposePage() {
                   </div>
                 </div>
 
-                {/* Post Buttons */}
-                <div className="flex gap-2 pt-1">
+                {/* Post Button */}
+                <div className="pt-1">
                   <button
                     onClick={handlePostToTeetimes}
-                    className="flex-1 inline-flex items-center justify-center gap-2 bg-emerald-600 text-white px-4 py-3 rounded-xl font-semibold text-sm hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-900/30"
+                    className="w-full inline-flex items-center justify-center gap-2 bg-emerald-600 text-white px-4 py-3 rounded-xl font-semibold text-sm hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-900/30"
                   >
                     <Calendar className="w-4 h-4" />
-                    Post Tee Time
-                  </button>
-                  <button
-                    onClick={handlePostLooking}
-                    className="flex-1 inline-flex items-center justify-center gap-2 bg-dark-700 text-gray-200 px-4 py-3 rounded-xl font-semibold text-sm hover:bg-dark-600 border border-dark-600 transition-colors"
-                  >
-                    <Users className="w-4 h-4" />
-                    Looking to Play
+                    Post to The Board
                   </button>
                 </div>
               </div>
