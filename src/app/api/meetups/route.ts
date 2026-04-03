@@ -1,6 +1,42 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 
+export async function DELETE(req: NextRequest) {
+  try {
+    const supabase = await createClient()
+    const { id } = await req.json()
+    if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 })
+
+    const { error } = await supabase.from('meetups').delete().eq('id', id)
+    if (error) {
+      console.error('Meetup delete error:', error.message)
+      return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+    return NextResponse.json({ ok: true })
+  } catch (err: any) {
+    console.error('Meetup DELETE error:', err?.message)
+    return NextResponse.json({ error: err?.message || 'Unexpected error' }, { status: 500 })
+  }
+}
+
+export async function PATCH(req: NextRequest) {
+  try {
+    const supabase = await createClient()
+    const { id, ...updates } = await req.json()
+    if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 })
+
+    const { error } = await supabase.from('meetups').update(updates).eq('id', id)
+    if (error) {
+      console.error('Meetup update error:', error.message)
+      return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+    return NextResponse.json({ ok: true })
+  } catch (err: any) {
+    console.error('Meetup PATCH error:', err?.message)
+    return NextResponse.json({ error: err?.message || 'Unexpected error' }, { status: 500 })
+  }
+}
+
 export async function POST(req: NextRequest) {
   try {
     const supabase = await createClient()

@@ -172,7 +172,7 @@ export default function CalendarPage() {
   async function handleDelete() {
     if (!deleteId) return
     setDeleting(true)
-    await supabase.from('meetups').delete().eq('id', deleteId)
+    await fetch('/api/meetups', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: deleteId }) })
     setDeleteId(null)
     setDeleting(false)
     fetchMeetups()
@@ -190,11 +190,16 @@ export default function CalendarPage() {
   async function handleEditSave() {
     if (!editId || !editTitle.trim() || !editDate || !editTime) return
     setSaving(true)
-    await supabase.from('meetups').update({
-      title: editTitle.trim(),
-      tee_time: new Date(`${editDate}T${editTime}:00`).toISOString(),
-      max_players: editMax,
-    }).eq('id', editId)
+    await fetch('/api/meetups', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: editId,
+        title: editTitle.trim(),
+        tee_time: new Date(`${editDate}T${editTime}:00`).toISOString(),
+        max_players: editMax,
+      }),
+    })
     setEditId(null)
     setSaving(false)
     fetchMeetups()
