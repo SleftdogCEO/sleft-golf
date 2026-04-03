@@ -14,6 +14,7 @@ import { hapticLight, hapticMedium, hapticSuccess } from '@/lib/haptics'
 import { sharePost } from '@/lib/native-share'
 import { takePhoto, isNativePlatform } from '@/lib/native-camera'
 import { RoundRecapCard } from '@/components/round-recap-card'
+import { db } from '@/lib/db'
 
 const VIBES = [
   { emoji: '\u{1F525}', label: 'On Fire' },
@@ -130,9 +131,9 @@ export default function FeedPage() {
     setPosts(prev => prev.map(p => p.id === postId ? { ...p, likes_count: p.likes_count + (isLiked ? -1 : 1) } : p))
     setLikedPosts(prev => { const next = new Set(prev); isLiked ? next.delete(postId) : next.add(postId); return next })
     if (isLiked) {
-      await supabase.from('likes').delete().eq('user_id', userId).eq('post_id', postId)
+      await db.delete('likes', { user_id: userId, post_id: postId })
     } else {
-      await supabase.from('likes').insert({ user_id: userId, post_id: postId })
+      await db.insert('likes', { user_id: userId, post_id: postId })
     }
   }
 
@@ -146,7 +147,7 @@ export default function FeedPage() {
       next[postId][emoji] = { count: next[postId][emoji].count + 1, reacted: true }
       return next
     })
-    await supabase.from('post_reactions').upsert({ post_id: postId, user_id: userId, emoji }, { onConflict: 'post_id,user_id,emoji' })
+    await db.upsert('post_reactions', { post_id: postId, user_id: userId, emoji }, 'post_id,user_id,emoji')
   }
 
   async function removeReaction(postId: string, emoji: string) {
@@ -156,7 +157,7 @@ export default function FeedPage() {
       if (next[postId]?.[emoji]) next[postId][emoji] = { count: Math.max(0, next[postId][emoji].count - 1), reacted: false }
       return next
     })
-    await supabase.from('post_reactions').delete().eq('post_id', postId).eq('user_id', userId).eq('emoji', emoji)
+    await db.delete('post_reactions', { post_id: postId, user_id: userId, emoji })
   }
 
   // Image handling
@@ -201,19 +202,22 @@ export default function FeedPage() {
 
     try {
       // Create round
-      const { data: round, error: roundError } = await supabase
-        .from('rounds')
-        .insert({
+      let round
+      try {
+        round = await db.insert('rounds', {
           user_id: userId,
           course_id: selectedCourse.id,
           score: parseInt(score),
           status: 'completed',
           tee_time: new Date().toISOString(),
         })
-        .select()
-        .single()
+      } catch {
+        setPostError('Failed to create round. Please try again.')
+        setSubmitting(false)
+        return
+      }
 
-      if (roundError || !round) {
+      if (!round) {
         setPostError('Failed to create round. Please try again.')
         setSubmitting(false)
         return
@@ -238,7 +242,7 @@ export default function FeedPage() {
       const content = parts.join('\n') || null
 
       // Create post
-      await supabase.from('posts').insert({
+      await db.insert('posts', {
         user_id: userId,
         round_id: round.id,
         content,

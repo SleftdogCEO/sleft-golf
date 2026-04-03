@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { useUser } from '@/hooks/use-user'
+import { db } from '@/lib/db'
 
 type Vote = {
   user_id: string
@@ -122,19 +123,10 @@ export default function ProposalPage() {
 
     if (existing?.vote === vote) {
       // Remove vote
-      await supabase
-        .from('proposal_time_votes')
-        .delete()
-        .eq('proposal_time_id', timeId)
-        .eq('user_id', userId)
+      await db.delete('proposal_time_votes', { proposal_time_id: timeId, user_id: userId })
     } else {
       // Upsert vote
-      await supabase
-        .from('proposal_time_votes')
-        .upsert(
-          { proposal_time_id: timeId, user_id: userId, vote },
-          { onConflict: 'proposal_time_id,user_id' }
-        )
+      await db.upsert('proposal_time_votes', { proposal_time_id: timeId, user_id: userId, vote }, 'proposal_time_id,user_id')
     }
     await fetchProposal()
   }
@@ -147,18 +139,9 @@ export default function ProposalPage() {
       ?.votes.find(v => v.user_id === userId)
 
     if (existing?.vote === vote) {
-      await supabase
-        .from('proposal_course_votes')
-        .delete()
-        .eq('proposal_course_id', courseOptionId)
-        .eq('user_id', userId)
+      await db.delete('proposal_course_votes', { proposal_course_id: courseOptionId, user_id: userId })
     } else {
-      await supabase
-        .from('proposal_course_votes')
-        .upsert(
-          { proposal_course_id: courseOptionId, user_id: userId, vote },
-          { onConflict: 'proposal_course_id,user_id' }
-        )
+      await db.upsert('proposal_course_votes', { proposal_course_id: courseOptionId, user_id: userId, vote }, 'proposal_course_id,user_id')
     }
     await fetchProposal()
   }
@@ -171,9 +154,9 @@ export default function ProposalPage() {
     const course = courseOptionId ? courseOptions.find(c => c.id === courseOptionId) : null
 
     // Create the meetup
-    const { data: meetup, error } = await supabase
-      .from('meetups')
-      .insert({
+    let meetup
+    try {
+      meetup = await db.insert('meetups', {
         title: proposal.title,
         tee_time: time!.date_time,
         course_id: course?.course_id || null,
@@ -181,11 +164,13 @@ export default function ProposalPage() {
         max_players: 8,
         description: proposal.message,
       })
-      .select()
-      .single()
+    } catch (err) {
+      console.error('Error creating meetup:', err)
+      setConfirming(false)
+      return
+    }
 
-    if (error || !meetup) {
-      console.error('Error creating meetup:', error)
+    if (!meetup) {
       setConfirming(false)
       return
     }
@@ -204,13 +189,10 @@ export default function ProposalPage() {
       user_id: uid,
     }))
 
-    await supabase.from('meetup_attendees').insert(attendeeRows)
+    await db.insertMany('meetup_attendees', attendeeRows)
 
     // Mark proposal as confirmed
-    await supabase
-      .from('proposals')
-      .update({ status: 'confirmed', confirmed_meetup_id: meetup.id })
-      .eq('id', proposal.id)
+    await db.update('proposals', { status: 'confirmed', confirmed_meetup_id: meetup.id }, { id: proposal.id })
 
     setConfirming(false)
     router.push(`/tee-times/${meetup.id}`)

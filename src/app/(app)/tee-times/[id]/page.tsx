@@ -25,6 +25,7 @@ import {
 import { format, formatDistanceToNow, isPast, differenceInHours, differenceInMinutes, differenceInSeconds } from 'date-fns'
 import { WeatherWidget } from '@/components/weather-widget'
 import { useUser } from '@/hooks/use-user'
+import { db } from '@/lib/db'
 
 export default function MatchRoomPage() {
   const { id } = useParams<{ id: string }>()
@@ -162,16 +163,14 @@ export default function MatchRoomPage() {
     const content = newMessage.trim()
     setNewMessage('')
 
-    const { error } = await supabase
-      .from('meetup_messages')
-      .insert({
+    try {
+      await db.insert('meetup_messages', {
         meetup_id: id,
         user_id: user.id,
         content,
       })
-
-    if (error) {
-      console.error('Error sending message:', error)
+    } catch (err) {
+      console.error('Error sending message:', err)
       setNewMessage(content) // restore on error
     }
     setSending(false)
@@ -181,11 +180,12 @@ export default function MatchRoomPage() {
   async function handleJoin() {
     if (!user) return
     setJoining(true)
-    const { error } = await supabase
-      .from('meetup_attendees')
-      .insert({ meetup_id: id, user_id: user.id })
-    if (!error) await fetchMeetup()
-    else console.error('Error joining meetup:', error)
+    try {
+      await db.insert('meetup_attendees', { meetup_id: id, user_id: user.id })
+      await fetchMeetup()
+    } catch (err) {
+      console.error('Error joining meetup:', err)
+    }
     setJoining(false)
   }
 
@@ -193,13 +193,12 @@ export default function MatchRoomPage() {
   async function handleLeave() {
     if (!user) return
     setJoining(true)
-    const { error } = await supabase
-      .from('meetup_attendees')
-      .delete()
-      .eq('meetup_id', id)
-      .eq('user_id', user.id)
-    if (!error) await fetchMeetup()
-    else console.error('Error leaving meetup:', error)
+    try {
+      await db.delete('meetup_attendees', { meetup_id: id, user_id: user.id })
+      await fetchMeetup()
+    } catch (err) {
+      console.error('Error leaving meetup:', err)
+    }
     setJoining(false)
   }
 

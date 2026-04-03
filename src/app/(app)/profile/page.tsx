@@ -29,6 +29,7 @@ import { PlayerReviewModal, ReviewCard } from '@/components/player-review-modal'
 import { takePhoto, isNativePlatform } from '@/lib/native-camera';
 import { sharePost } from '@/lib/native-share';
 import { hapticLight, hapticMedium, hapticSuccess, hapticError } from '@/lib/haptics';
+import { db } from '@/lib/db';
 
 type ProfileTab = 'rounds' | 'posts' | 'reviews';
 
@@ -134,13 +135,7 @@ export default function ProfilePage() {
             username: authUser.email?.split('@')[0] || 'golfer',
             email: authUser.email,
           };
-          const { data: created, error: createError } = await supabase
-            .from('profiles')
-            .upsert(newProfile, { onConflict: 'id' })
-            .select()
-            .single();
-
-          if (createError) throw new Error(createError.message);
+          const created = await db.upsert('profiles', newProfile, 'id');
 
           if (created) {
             const p = created as Profile;
@@ -216,9 +211,8 @@ export default function ProfilePage() {
     setSaving(true);
     hapticLight();
 
-    const { error } = await supabase
-      .from('profiles')
-      .update({
+    try {
+      await db.update('profiles', {
         full_name: formData.full_name || null,
         username: formData.username || null,
         bio: formData.bio || null,
@@ -228,10 +222,8 @@ export default function ProfilePage() {
         occupation: formData.occupation || null,
         company: formData.company || null,
         linkedin_url: formData.linkedin_url || null,
-      })
-      .eq('id', profile.id);
+      }, { id: profile.id });
 
-    if (!error) {
       setProfile((prev) =>
         prev
           ? {
@@ -250,7 +242,7 @@ export default function ProfilePage() {
       );
       setEditing(false);
       hapticSuccess();
-    } else {
+    } catch {
       hapticError();
     }
     setSaving(false);
@@ -291,14 +283,12 @@ export default function ProfilePage() {
           data: { publicUrl },
         } = supabase.storage.from('avatars').getPublicUrl(filePath);
 
-        const { error: updateError } = await supabase
-          .from('profiles')
-          .update({ avatar_url: publicUrl })
-          .eq('id', profile.id);
-
-        if (!updateError) {
+        try {
+          await db.update('profiles', { avatar_url: publicUrl }, { id: profile.id });
           setProfile((prev) => (prev ? { ...prev, avatar_url: publicUrl } : null));
           hapticSuccess();
+        } catch {
+          // Avatar URL update failed
         }
       }
     } catch (err) {
@@ -311,14 +301,22 @@ export default function ProfilePage() {
 
   const handleDeleteRound = async (roundId: string) => {
     hapticLight();
-    const { error } = await supabase.from('rounds').delete().eq('id', roundId);
-    if (!error) setRounds((prev) => prev.filter((r) => r.id !== roundId));
+    try {
+      await db.delete('rounds', { id: roundId });
+      setRounds((prev) => prev.filter((r) => r.id !== roundId));
+    } catch (err) {
+      console.error('Error deleting round:', err);
+    }
   };
 
   const handleDeletePost = async (postId: string) => {
     hapticLight();
-    const { error } = await supabase.from('posts').delete().eq('id', postId);
-    if (!error) setPosts((prev) => prev.filter((p) => p.id !== postId));
+    try {
+      await db.delete('posts', { id: postId });
+      setPosts((prev) => prev.filter((p) => p.id !== postId));
+    } catch (err) {
+      console.error('Error deleting post:', err);
+    }
   };
 
   const handleShareProfile = async () => {

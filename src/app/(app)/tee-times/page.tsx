@@ -21,6 +21,7 @@ import {
 } from 'lucide-react'
 import { format, formatDistanceToNow, isPast } from 'date-fns'
 import { useUser } from '@/hooks/use-user'
+import { db } from '@/lib/db'
 
 type MeetupAttendee = {
   id: string
@@ -172,9 +173,8 @@ export default function TeeTimesPage() {
     if (!newCourseName.trim() || !newCourseCity.trim()) return
     setAddingCourse(true)
 
-    const { data, error } = await supabase
-      .from('courses')
-      .insert({
+    try {
+      const data = await db.insert('courses', {
         name: newCourseName.trim(),
         parent_club: newCourseClub.trim() || null,
         city: newCourseCity.trim(),
@@ -182,17 +182,18 @@ export default function TeeTimesPage() {
         holes: 18,
         par: 72,
       })
-      .select('id, name, city, state, parent_club, price_tier, green_fee_estimate, is_private')
-      .single()
 
-    if (data && !error) {
-      setCourses(prev => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)))
-      setFormCourseId(data.id)
-      setFormClub(data.parent_club ? `${data.parent_club} - ${data.name}` : data.name)
-      setShowAddCourse(false)
-      setNewCourseName('')
-      setNewCourseClub('')
-      setNewCourseCity('')
+      if (data) {
+        setCourses(prev => [...prev, data].sort((a: CourseOption, b: CourseOption) => a.name.localeCompare(b.name)))
+        setFormCourseId(data.id)
+        setFormClub(data.parent_club ? `${data.parent_club} - ${data.name}` : data.name)
+        setShowAddCourse(false)
+        setNewCourseName('')
+        setNewCourseClub('')
+        setNewCourseCity('')
+      }
+    } catch (err) {
+      console.error('Error adding course:', err)
     }
     setAddingCourse(false)
   }
@@ -200,7 +201,7 @@ export default function TeeTimesPage() {
   async function handleJoin(meetupId: string) {
     if (!user) return
     setJoining(meetupId)
-    await supabase.from('meetup_attendees').insert({ meetup_id: meetupId, user_id: user.id })
+    await db.insert('meetup_attendees', { meetup_id: meetupId, user_id: user.id })
     await fetchMeetups()
     setJoining(null)
   }
@@ -208,14 +209,14 @@ export default function TeeTimesPage() {
   async function handleLeave(meetupId: string) {
     if (!user) return
     setJoining(meetupId)
-    await supabase.from('meetup_attendees').delete().eq('meetup_id', meetupId).eq('user_id', user.id)
+    await db.delete('meetup_attendees', { meetup_id: meetupId, user_id: user.id })
     await fetchMeetups()
     setJoining(null)
   }
 
   async function handleDelete(meetupId: string) {
     setDeleting(true)
-    await supabase.from('meetups').delete().eq('id', meetupId)
+    await db.delete('meetups', { id: meetupId })
     setDeleteId(null)
     setDeleting(false)
     await fetchMeetups()
@@ -233,16 +234,13 @@ export default function TeeTimesPage() {
   async function handleEditSave() {
     if (!editMeetup || !editTitle.trim() || !editDateTime) return
     setSaving(true)
-    await supabase
-      .from('meetups')
-      .update({
-        title: editTitle.trim(),
-        tee_time: new Date(editDateTime).toISOString(),
-        max_players: editMaxPlayers,
-        course_id: editCourseId || null,
-        description: editDescription.trim() || null,
-      })
-      .eq('id', editMeetup.id)
+    await db.update('meetups', {
+      title: editTitle.trim(),
+      tee_time: new Date(editDateTime).toISOString(),
+      max_players: editMaxPlayers,
+      course_id: editCourseId || null,
+      description: editDescription.trim() || null,
+    }, { id: editMeetup.id })
     setEditMeetup(null)
     setSaving(false)
     await fetchMeetups()
@@ -268,9 +266,8 @@ export default function TeeTimesPage() {
       ltpNotes.trim() || null,
     ].filter(Boolean).join('\n')
 
-    const { data: newMeetup } = await supabase
-      .from('meetups')
-      .insert({
+    try {
+      const newMeetup = await db.insert('meetups', {
         title,
         course_id: null,
         tee_time: date.toISOString(),
@@ -278,11 +275,12 @@ export default function TeeTimesPage() {
         description: desc,
         organizer_id: user.id,
       })
-      .select()
-      .single()
 
-    if (newMeetup) {
-      await supabase.from('meetup_attendees').insert({ meetup_id: newMeetup.id, user_id: user.id })
+      if (newMeetup) {
+        await db.insert('meetup_attendees', { meetup_id: newMeetup.id, user_id: user.id })
+      }
+    } catch (err) {
+      console.error('Error creating tee time:', err)
     }
 
     setLtpDay('')
@@ -300,9 +298,8 @@ export default function TeeTimesPage() {
     if (!user || !formTitle.trim() || !formDateTime) return
     setSubmitting(true)
 
-    const { data: newMeetup } = await supabase
-      .from('meetups')
-      .insert({
+    try {
+      const newMeetup = await db.insert('meetups', {
         title: formTitle.trim(),
         course_id: formCourseId || null,
         tee_time: new Date(formDateTime).toISOString(),
@@ -310,11 +307,12 @@ export default function TeeTimesPage() {
         description: [formClub && !formCourseId ? `Club: ${formClub}` : '', formDescription.trim()].filter(Boolean).join('\n') || null,
         organizer_id: user.id,
       })
-      .select()
-      .single()
 
-    if (newMeetup) {
-      await supabase.from('meetup_attendees').insert({ meetup_id: newMeetup.id, user_id: user.id })
+      if (newMeetup) {
+        await db.insert('meetup_attendees', { meetup_id: newMeetup.id, user_id: user.id })
+      }
+    } catch (err) {
+      console.error('Error creating tee time:', err)
     }
 
     setFormTitle('')

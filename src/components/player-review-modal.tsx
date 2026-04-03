@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { Profile, PlayerReview } from '@/lib/types'
 import { X, Search, Star } from 'lucide-react'
+import { db } from '@/lib/db'
 
 interface PlayerReviewModalProps {
   userId: string
@@ -127,23 +128,16 @@ export function PlayerReviewModal({ userId, onClose }: PlayerReviewModalProps) {
       comment: comment.trim() || null,
     }
 
-    let result
-    if (existingReview) {
-      result = await supabase
-        .from('player_reviews')
-        .update(reviewData)
-        .eq('id', existingReview.id)
-    } else {
-      result = await supabase
-        .from('player_reviews')
-        .insert(reviewData)
-    }
-
-    if (result.error) {
-      setError(result.error.message)
-    } else {
+    try {
+      if (existingReview) {
+        await db.update('player_reviews', reviewData, { id: existingReview.id })
+      } else {
+        await db.insert('player_reviews', reviewData)
+      }
       setSuccess(true)
       setTimeout(onClose, 1500)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to submit review')
     }
     setSubmitting(false)
   }

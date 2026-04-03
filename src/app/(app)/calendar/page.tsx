@@ -32,6 +32,7 @@ import {
 } from 'date-fns'
 import type { Meetup, Profile, Course } from '@/lib/types'
 import { hapticLight, hapticMedium, hapticSuccess } from '@/lib/haptics'
+import { db } from '@/lib/db'
 
 export default function CalendarPage() {
   const supabaseRef = useRef(createClient())
@@ -170,7 +171,7 @@ export default function CalendarPage() {
     if (joining) return
     hapticMedium()
     setJoining(meetupId)
-    await supabase.from('meetup_attendees').insert({ meetup_id: meetupId, user_id: userId })
+    await db.insert('meetup_attendees', { meetup_id: meetupId, user_id: userId })
     await fetchMeetups()
     setJoining(null)
   }
@@ -178,7 +179,7 @@ export default function CalendarPage() {
   async function leaveMeetup(meetupId: string) {
     if (!userId || joining) return
     setJoining(meetupId)
-    await supabase.from('meetup_attendees').delete().eq('meetup_id', meetupId).eq('user_id', userId)
+    await db.delete('meetup_attendees', { meetup_id: meetupId, user_id: userId })
     await fetchMeetups()
     setJoining(null)
   }
@@ -246,7 +247,7 @@ export default function CalendarPage() {
       const teeTime = new Date(`${teeDateStr}T${teeTimeStr}:00`)
       const title = formTitle.trim() || `Round at ${selectedCourse.name}`
 
-      const { error } = await supabase.from('meetups').insert({
+      await db.insert('meetups', {
         title,
         course_id: selectedCourse.id,
         tee_time: teeTime.toISOString(),
@@ -254,19 +255,12 @@ export default function CalendarPage() {
         organizer_id: userId,
       })
 
-      if (error) {
-        setFormError('Failed to create tee time. Please try again.')
-        setSubmitting(false)
-        return
-      }
-
       hapticSuccess()
       resetForm()
       setSelectedDate(new Date(teeDateStr))
       fetchMeetups()
     } catch {
-      setFormError('Something went wrong.')
-      setSubmitting(false)
+      setFormError('Failed to create tee time. Please try again.')
     } finally {
       setSubmitting(false)
     }

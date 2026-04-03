@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import type { Course } from '@/lib/types'
 import { MapPin, Camera, Send, X, Search, ChevronDown } from 'lucide-react'
+import { db } from '@/lib/db'
 
 const VIBES = [
   { emoji: '🔥', label: 'On Fire' },
@@ -97,20 +98,16 @@ export function QuickRoundPost({ onPostCreated }: QuickRoundPostProps) {
     const supabase = supabaseRef.current
 
     try {
-      const { data: round, error: roundError } = await supabase
-        .from('rounds')
-        .insert({
-          user_id: userId,
-          course_id: selectedCourse.id,
-          score: parseInt(score),
-          status: 'completed',
-          tee_time: new Date().toISOString(),
-        })
-        .select()
-        .single()
+      const round = await db.insert('rounds', {
+        user_id: userId,
+        course_id: selectedCourse.id,
+        score: parseInt(score),
+        status: 'completed',
+        tee_time: new Date().toISOString(),
+      })
 
-      if (roundError || !round) {
-        console.error('Round creation error:', roundError)
+      if (!round) {
+        console.error('Round creation failed')
         return
       }
 
@@ -132,7 +129,7 @@ export function QuickRoundPost({ onPostCreated }: QuickRoundPostProps) {
       if (note.trim()) contentParts.push(note.trim())
       const content = contentParts.join('\n') || null
 
-      await supabase.from('posts').insert({
+      await db.insert('posts', {
         user_id: userId,
         round_id: round.id,
         content,

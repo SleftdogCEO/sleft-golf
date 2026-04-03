@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import type { Comment } from '@/lib/types'
 import { Send } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
+import { db } from '@/lib/db'
 
 interface PostCommentsProps {
   postId: string
@@ -49,25 +50,25 @@ export function PostComments({ postId, userId, onCountChange }: PostCommentsProp
     if (!userId || !newComment.trim() || submitting) return
 
     setSubmitting(true)
-    const { data, error } = await supabase
-      .from('comments')
-      .insert({ user_id: userId, post_id: postId, content: newComment.trim() })
-      .select('*, profiles(*)')
-      .single()
-
-    if (!error && data) {
-      setComments(prev => [...prev, data as Comment])
+    try {
+      await db.insert('comments', { user_id: userId, post_id: postId, content: newComment.trim() })
       setNewComment('')
       onCountChange?.(postId, 1)
+      // Re-fetch comments to get the full row with profile
+      await fetchComments()
+    } catch (err) {
+      console.error('Error posting comment:', err)
     }
     setSubmitting(false)
   }
 
   async function handleDelete(commentId: string) {
-    const { error } = await supabase.from('comments').delete().eq('id', commentId)
-    if (!error) {
+    try {
+      await db.delete('comments', { id: commentId })
       setComments(prev => prev.filter(c => c.id !== commentId))
       onCountChange?.(postId, -1)
+    } catch (err) {
+      console.error('Error deleting comment:', err)
     }
   }
 
