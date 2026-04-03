@@ -129,10 +129,12 @@ export default function CalendarPage() {
   }, [meetups])
 
   function getPlayerCount(meetup: Meetup): number {
-    // Deduplicate: organizer may also be in meetup_attendees
+    // Use confirmed_count (includes off-app guests) or fall back to attendee count
     const attendeeIds = new Set(meetup.meetup_attendees?.map(a => a.user_id) || [])
-    attendeeIds.add(meetup.organizer_id) // ensure organizer is counted
-    return attendeeIds.size
+    attendeeIds.add(meetup.organizer_id)
+    const onAppCount = attendeeIds.size
+    const confirmed = (meetup as any).confirmed_count || 1
+    return Math.max(confirmed, onAppCount)
   }
 
   function getSpotsLeft(meetup: Meetup): number {

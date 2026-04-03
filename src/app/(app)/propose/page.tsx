@@ -200,6 +200,7 @@ export default function ProposePage() {
           course_id: course.id && course.id.length > 10 ? course.id : null,
           tee_time: new Date(teeTime.dateTime).toISOString(),
           max_players: readyData.players + openSpots,
+          confirmed_count: readyData.players,
           description: [
             readyData.times.length > 1 ? `Flexible times: ${readyData.times.map(t => t.label).join(', ')}` : null,
             !course.id || course.id.length <= 10 ? `Course: ${course.name}` : null,

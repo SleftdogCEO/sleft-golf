@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
   try {
     const supabase = createAdminClient()
     const body = await req.json()
-    const { title, course_id, tee_time, max_players, description, organizer_id } = body
+    const { title, course_id, tee_time, max_players, description, organizer_id, confirmed_count } = body
 
     if (!title || !tee_time || !organizer_id) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
@@ -56,6 +56,7 @@ export async function POST(req: NextRequest) {
         max_players: max_players || 4,
         description: description || null,
         organizer_id,
+        confirmed_count: confirmed_count || 1,
       })
       .select()
       .single()
