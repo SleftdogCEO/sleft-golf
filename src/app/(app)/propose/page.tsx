@@ -229,11 +229,11 @@ export default function ProposePage() {
 
 
   return (
-    <div className="min-h-screen bg-dark-950" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
-      <div className="max-w-2xl mx-auto px-4 py-4 sm:py-8">
+    <div className="h-[100dvh] bg-dark-950 flex flex-col" style={{ paddingTop: 'env(safe-area-inset-top, 0px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+      <div className="max-w-2xl mx-auto px-4 pt-2 pb-2 flex flex-col flex-1 min-h-0 w-full">
 
         {/* Sleft Caddie Chat */}
-        <div className="bg-gradient-to-br from-dark-800 to-emerald-950/20 rounded-2xl border border-emerald-900/30 overflow-hidden shadow-xl shadow-emerald-900/10 flex flex-col" style={{ minHeight: 'calc(100vh - 6rem)', maxHeight: 'calc(100dvh - 4rem)' }}>
+        <div className="bg-gradient-to-br from-dark-800 to-emerald-950/20 rounded-2xl border border-emerald-900/30 overflow-hidden shadow-xl shadow-emerald-900/10 flex flex-col flex-1 min-h-0">
           {/* Header */}
           <div className="flex items-center gap-3 px-6 py-4 border-b border-dark-700 bg-dark-900/60">
             <div className="w-10 h-10 rounded-full bg-emerald-600 flex items-center justify-center">
@@ -462,7 +462,7 @@ export default function ProposePage() {
           )}
 
           {/* Chat Input */}
-          <div className={`px-5 py-4 ${quickReplies.length === 0 ? 'border-t border-dark-700' : ''} bg-dark-900/40`} style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom, 1rem))' }}>
+          <div className={`px-5 py-3 ${quickReplies.length === 0 ? 'border-t border-dark-700' : ''} bg-dark-900/40 flex-shrink-0`}>
             <div className="flex gap-3">
               <input
                 ref={chatInputRef}
