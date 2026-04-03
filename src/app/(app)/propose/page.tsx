@@ -177,34 +177,22 @@ export default function ProposePage() {
         ? readyData.courses.find(c => c.id === selectedCourseId) || readyData.courses[0]
         : readyData.courses[0]
 
-      const insertData = {
-        title: readyData.title,
-        course_id: course.id || null,
-        tee_time: new Date(teeTime.dateTime).toISOString(),
-        max_players: groupSize,
-        description: readyData.times.length > 1
-          ? `Flexible times: ${readyData.times.map(t => t.label).join(', ')}`
-          : null,
-        organizer_id: userId,
-      }
+      const res = await fetch('/api/meetups', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: readyData.title,
+          course_id: course.id || null,
+          tee_time: new Date(teeTime.dateTime).toISOString(),
+          max_players: groupSize,
+          description: readyData.times.length > 1
+            ? `Flexible times: ${readyData.times.map(t => t.label).join(', ')}`
+            : null,
+        }),
+      })
 
-      const { data: newMeetup, error } = await supabase
-        .from('meetups')
-        .insert(insertData)
-        .select()
-        .single()
-
-      if (error) {
-        console.error('Meetup insert error:', JSON.stringify(error))
-        throw new Error(error.message || 'Failed to create meetup')
-      }
-
-      if (newMeetup) {
-        await supabase.from('meetup_attendees').insert({
-          meetup_id: newMeetup.id,
-          user_id: userId,
-        })
-      }
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed to post')
 
       router.push('/tee-times')
     } catch (err: any) {
@@ -233,30 +221,20 @@ export default function ProposePage() {
 
       const title = `Looking to play ${dayLabel} ${timeLabel} near ${area}`
 
-      const { data: newMeetup, error } = await supabase
-        .from('meetups')
-        .insert({
+      const res = await fetch('/api/meetups', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
           title,
           course_id: null,
           tee_time: date.toISOString(),
           max_players: groupSize,
           description: `Area: ${area}\n${profile?.handicap != null ? `Handicap: ${profile.handicap}` : ''}`,
-          organizer_id: userId,
-        })
-        .select()
-        .single()
+        }),
+      })
 
-      if (error) {
-        console.error('Meetup insert error:', JSON.stringify(error))
-        throw new Error(error.message || 'Failed to create meetup')
-      }
-
-      if (newMeetup) {
-        await supabase.from('meetup_attendees').insert({
-          meetup_id: newMeetup.id,
-          user_id: userId,
-        })
-      }
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed to post')
 
       router.push('/tee-times')
     } catch (err: any) {
