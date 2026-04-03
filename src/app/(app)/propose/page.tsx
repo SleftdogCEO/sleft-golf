@@ -126,6 +126,16 @@ export default function ProposePage() {
     if (!lastMsg || lastMsg.role !== 'assistant') return []
     const text = lastMsg.content.toLowerCase()
 
+    // Asking about player count
+    if (/how many player|how many.*total|how many.*joining|how many.*confirmed|including you/i.test(text)) {
+      return [
+        { label: 'Just me', value: 'Just me' },
+        { label: '2 players', value: '2 players total' },
+        { label: '3 players', value: '3 players total' },
+        { label: '4 players', value: '4 players total' },
+      ]
+    }
+
     // Asking about time of day
     if (/what time|morning.*afternoon|when.*thinking|time.*work|time.*prefer/i.test(text) && !/where|area|course|location/i.test(text)) {
       return [
@@ -259,8 +269,8 @@ export default function ProposePage() {
                     </div>
                   )}
 
-                  {/* Show suggested courses with pricing — clickable to select */}
-                  {msg.role === 'assistant' && msg.courses && msg.courses.length > 0 && (
+                  {/* Show suggested courses — only when offering multiple options */}
+                  {msg.role === 'assistant' && msg.courses && msg.courses.length > 1 && (
                     <div className="mt-1.5 flex flex-wrap gap-1">
                       {msg.courses.map((c, j) => {
                         const tier = c.price_tier
