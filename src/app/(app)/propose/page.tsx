@@ -48,9 +48,9 @@ export default function ProposePage() {
     title: string
     times: { dateTime: string; label: string }[]
     courses: CourseChip[]
-    players: number
+    confirmed: number
+    openSpots: number
   } | null>(null)
-  const [openSpots, setOpenSpots] = useState(0)
   const [posting, setPosting] = useState(false)
   const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null)
   const [selectedTimeIdx, setSelectedTimeIdx] = useState(0)
@@ -98,17 +98,17 @@ export default function ProposePage() {
 
       setChatMessages(prev => [...prev, assistantMsg])
 
-      // If we have times AND courses AND players, the round is ready to post
-      if (data.times?.length > 0 && data.courses?.length > 0 && data.players != null) {
+      // If we have times AND courses AND confirmed count, the round is ready to post
+      if (data.times?.length > 0 && data.courses?.length > 0 && data.confirmed != null) {
         setReadyData({
           title: data.title || 'Golf round',
           times: data.times,
           courses: data.courses,
-          players: data.players,
+          confirmed: data.confirmed,
+          openSpots: data.open_spots || 0,
         })
         setSelectedCourseId(null)
         setSelectedTimeIdx(0)
-        setOpenSpots(0)
         setPostError(null)
       }
     } catch {
@@ -205,8 +205,8 @@ export default function ProposePage() {
           title: readyData.title,
           course_id: course.id && course.id.length > 10 ? course.id : null,
           tee_time: new Date(teeTime.dateTime).toISOString(),
-          max_players: readyData.players + openSpots,
-          confirmed_count: readyData.players,
+          max_players: readyData.confirmed + readyData.openSpots,
+          confirmed_count: readyData.confirmed,
           description: [
             readyData.times.length > 1 ? `Flexible times: ${readyData.times.map(t => t.label).join(', ')}` : null,
             !course.id || course.id.length <= 10 ? `Course: ${course.name}` : null,
@@ -386,42 +386,15 @@ export default function ProposePage() {
                   </div>
                 </div>
 
-                {/* Confirmed players */}
-                <div>
-                  <div className="flex items-center gap-2 mb-2">
-                    <Users className="w-3.5 h-3.5 text-gray-400" />
-                    <span className="text-xs font-medium text-gray-400">
-                      {readyData.players} confirmed {readyData.players === 1 ? '(just you)' : `(you + ${readyData.players - 1})`}
-                    </span>
-                  </div>
-
-                  {/* Open spots toggle */}
-                  <div className="bg-dark-700/50 rounded-xl p-3">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm text-gray-300">Open spots for others to join?</span>
-                    </div>
-                    <div className="flex gap-2">
-                      {[0, 1, 2, 3].map(n => (
-                        <button
-                          key={n}
-                          type="button"
-                          onClick={() => setOpenSpots(n)}
-                          className={`flex-1 py-2 rounded-xl text-sm font-medium transition-colors ${
-                            openSpots === n
-                              ? 'bg-emerald-600 text-white'
-                              : 'bg-dark-700 text-gray-400 hover:text-white hover:bg-dark-600 border border-dark-600'
-                          }`}
-                        >
-                          {n === 0 ? 'No' : `+${n}`}
-                        </button>
-                      ))}
-                    </div>
-                    {openSpots > 0 && (
-                      <p className="text-xs text-emerald-400 mt-2">
-                        {readyData.players + openSpots} total spots — {openSpots} open for others
-                      </p>
+                {/* Player summary */}
+                <div className="flex items-center gap-2">
+                  <Users className="w-3.5 h-3.5 text-gray-400" />
+                  <span className="text-sm text-gray-300">
+                    {readyData.confirmed} confirmed{readyData.confirmed === 1 ? ' (just you)' : ` (you + ${readyData.confirmed - 1})`}
+                    {readyData.openSpots > 0 && (
+                      <span className="text-emerald-400"> · {readyData.openSpots} open spot{readyData.openSpots !== 1 ? 's' : ''}</span>
                     )}
-                  </div>
+                  </span>
                 </div>
 
                 {/* Post Button */}

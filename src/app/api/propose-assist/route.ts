@@ -87,13 +87,13 @@ Available courses in the system:
 ${courseRef}
 
 Respond with ONLY valid JSON:
-{"message":"Your conversational response","times":[{"dateTime":"YYYY-MM-DDTHH:mm","label":"DayName, Mon DD at H:MM AM/PM"}],"courses":[{"id":"course-uuid","name":"Display Name"}],"title":"Suggested title or null","players":null}
+{"message":"Your conversational response","times":[{"dateTime":"YYYY-MM-DDTHH:mm","label":"DayName, Mon DD at H:MM AM/PM"}],"courses":[{"id":"course-uuid","name":"Display Name"}],"title":"Suggested title or null","confirmed":null,"open_spots":0}
 
 CONVERSATION FLOW — this is critical. You need FOUR things before generating a final proposal: WHEN, WHAT TIME, WHERE, and HOW MANY.
 1. If the user gives VAGUE availability (e.g. "this weekend", "Saturday", "any day except Wednesday") WITHOUT a specific time, DO NOT generate times yet. Instead, ask what time works. Example: "Saturday works! What time are you thinking — morning, afternoon, or a specific tee time?"
 2. If you have the day and time but NO location/area/course yet, ask where they want to play BEFORE generating times. Example: "Afternoon next week, got it! Where are you looking to play — any particular area or course?"
 3. Once you have day, time, AND course — ask how many are playing. Example: "Ibis Heritage, Saturday morning — solid pick! How many players total, including you?"
-4. Only generate times AND set players (non-empty times array + non-null players) when you have ALL FOUR: day(s), time preference, location/course, AND player count.
+4. Only generate times AND set confirmed (non-empty times array + non-null confirmed) when you have ALL FOUR: day(s), time preference, location/course, AND player count.
 5. If the user gives a SPECIFIC day AND time (e.g. "Saturday at 10am", "Sunday morning") but no location, ask where.
 6. If the user gives MULTIPLE specific day+time combos (e.g. "Saturday 9am or Sunday 2pm"), still ask where if no location given.
 7. If the user says "morning" with a day, use T08:00. "Afternoon" = T14:00. "Evening" = T17:00.
@@ -101,11 +101,13 @@ CONVERSATION FLOW — this is critical. You need FOUR things before generating a
 9. If the user gives everything at once (day, time, location/course, AND player count), set it all up in one response — no extra questions needed.
 
 Rules for PLAYERS:
-- "players" = the total number of confirmed players INCLUDING the person posting. Set to null until the user tells you.
-- "Just me" / "solo" = 1. "Me and a buddy" / "2 of us" = 2. "Need a 4th" = they have 3 confirmed, looking for 1 more, so players = 3. "Full foursome" = 4.
-- If user says "need a 3rd" that means 2 confirmed looking for 1 more, so players = 2.
-- If user says "looking for players" without specifying, ask: "How many do you have confirmed so far, including yourself?"
-- The app will let them open up extra spots for others to join after confirming their count.
+- "confirmed" = number of confirmed players INCLUDING the person posting. Set to null until the user tells you.
+- "open_spots" = number of ADDITIONAL players they are looking for. Default 0.
+- "Just me" / "solo" = confirmed:1, open_spots:0. "Me and a buddy" / "2 of us" = confirmed:2, open_spots:0.
+- "Need a 4th" = confirmed:3, open_spots:1. "Need a 3rd" = confirmed:2, open_spots:1.
+- "Full foursome" = confirmed:4, open_spots:0. "3 of us, looking for 1 more" = confirmed:3, open_spots:1.
+- "Looking for players" without specifying = ask: "How many do you have confirmed, and how many more do you need?"
+- If user gives ONLY a total (e.g. "4 players") with no mention of needing more, set confirmed to that number with open_spots:0.
 
 Rules for TIMES:
 - ALWAYS look up dates from the reference above. Never guess dates.
@@ -133,7 +135,7 @@ General:
 - Ask ONE follow-up question at a time — don't overwhelm with multiple questions
 - When you have day, time, course, AND player count nailed down, give a confident summary like "All set! 3 players, Saturday at 10am at Ibis - Tradition. Hit Post!"
 - NEVER generate times without also having a course/location. If you have times but no location, set times=[] and ask where.
-- NEVER set players to a non-null value without also having times and courses ready. If you know the player count but not the rest, keep players=null and keep asking.
+- NEVER set confirmed to a non-null value without also having times and courses ready. If you know the player count but not the rest, keep confirmed=null and keep asking.
 - If the user mentions needing extra players (e.g. "need a 3rd", "need a 4th", "looking for players"), acknowledge it — the app will let them set group size when posting.
 - IMPORTANT: Do NOT list or enumerate courses in your message text. The UI will display course chips automatically from the courses array. Just reference them naturally (e.g. "Found some great options near West Palm!" not "Here are the courses: 1. Ibis - Tradition 2. PGA National..."). Keep your message short — the data speaks for itself.
 - IMPORTANT: Once the user has selected a specific course, ONLY include that one course in the courses array going forward. Do NOT keep showing all the options after they've picked one.
@@ -169,7 +171,7 @@ export async function POST(req: NextRequest) {
       const msgMatch = text.match(/"message"\s*:\s*"([^"]*)"/)
       return NextResponse.json({
         message: msgMatch?.[1] || "Sorry, I got confused. Can you try again?",
-        times: [], courses: [], title: null, players: null,
+        times: [], courses: [], title: null, confirmed: null, open_spots: 0,
       })
     }
     let times: { dateTime: string; label: string }[] = Array.isArray(parsed.times) ? parsed.times : []
@@ -233,7 +235,8 @@ export async function POST(req: NextRequest) {
       times,
       courses: suggestedCourses,
       title: parsed.title || null,
-      players: typeof parsed.players === 'number' ? parsed.players : null,
+      confirmed: typeof parsed.confirmed === 'number' ? parsed.confirmed : null,
+      open_spots: typeof parsed.open_spots === 'number' ? parsed.open_spots : 0,
     })
   } catch (error: any) {
     const errMsg = error?.message || 'Unknown error'
