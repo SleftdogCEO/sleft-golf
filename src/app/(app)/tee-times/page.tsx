@@ -706,7 +706,9 @@ export default function TeeTimesPage() {
             {filteredMeetups.map(meetup => {
               const status = getStatus(meetup)
               const attendeeCount = meetup.meetup_attendees?.length ?? 0
-              const spotsLeft = meetup.max_players - attendeeCount
+              // Organizer always counts even if attendee insert failed
+              const effectiveCount = Math.max(attendeeCount, meetup.organizer_id ? 1 : 0)
+              const spotsLeft = meetup.max_players - effectiveCount
               const attending = isUserAttending(meetup)
               const isOrganizer = user?.id === meetup.organizer_id
               const ltp = isLookingToPlay(meetup)
@@ -766,11 +768,14 @@ export default function TeeTimesPage() {
                         </div>
                       </div>
 
-                      {status === 'open' && (
+                      {status === 'open' && spotsLeft > 0 && (
                         <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-900/40 text-emerald-400 border border-emerald-800/50">
                           <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                          {spotsLeft} spot{spotsLeft !== 1 ? 's' : ''}
+                          {spotsLeft} open
                         </span>
+                      )}
+                      {status === 'open' && spotsLeft <= 0 && (
+                        <span className="px-3 py-1 rounded-full text-xs font-semibold bg-amber-900/40 text-amber-400 border border-amber-800/50">Squad&apos;s Full</span>
                       )}
                       {status === 'full' && (
                         <span className="px-3 py-1 rounded-full text-xs font-semibold bg-amber-900/40 text-amber-400 border border-amber-800/50">Squad&apos;s Full</span>
@@ -866,14 +871,14 @@ export default function TeeTimesPage() {
 
                     {/* Actions */}
                     <div className="flex items-center gap-2">
-                      {status !== 'past' && user && (
+                      {status !== 'past' && user && !isOrganizer && (
                         <>
                           {attending ? (
                             <button onClick={() => handleLeave(meetup.id)} disabled={joining === meetup.id} className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium bg-dark-700 text-gray-300 hover:bg-red-900/30 hover:text-red-400 border border-dark-600 hover:border-red-800/50 transition-colors disabled:opacity-50">
                               {joining === meetup.id ? <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" /> : <X className="w-4 h-4" />}
                               Bail
                             </button>
-                          ) : status === 'open' ? (
+                          ) : status === 'open' && spotsLeft > 0 ? (
                             <button onClick={() => handleJoin(meetup.id)} disabled={joining === meetup.id} className="inline-flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-semibold bg-emerald-600 text-white hover:bg-emerald-700 transition-colors shadow-sm shadow-emerald-900/30 disabled:opacity-50">
                               {joining === meetup.id ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <Check className="w-4 h-4" />}
                               I&apos;m In

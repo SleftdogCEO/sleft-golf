@@ -203,8 +203,8 @@ export default function ProposePage() {
       if (error) throw new Error(error.message || 'Database error')
       if (!newMeetup) throw new Error('No data returned from insert')
 
-      // Add organizer as attendee (non-blocking)
-      supabase.from('meetup_attendees').insert({
+      // Add organizer as attendee
+      await supabase.from('meetup_attendees').insert({
         meetup_id: newMeetup.id,
         user_id: userId,
       })
@@ -259,7 +259,7 @@ export default function ProposePage() {
       if (error) throw new Error(error.message || 'Database error')
       if (!newMeetup) throw new Error('No data returned from insert')
 
-      supabase.from('meetup_attendees').insert({
+      await supabase.from('meetup_attendees').insert({
         meetup_id: newMeetup.id,
         user_id: userId,
       })
