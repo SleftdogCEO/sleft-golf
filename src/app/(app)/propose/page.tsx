@@ -50,6 +50,9 @@ export default function ProposePage() {
   } | null>(null)
   const [groupSize, setGroupSize] = useState(4)
   const [posting, setPosting] = useState(false)
+  const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null)
+  const [selectedTimeIdx, setSelectedTimeIdx] = useState(0)
+  const [postError, setPostError] = useState<string | null>(null)
 
   useEffect(() => {
     const el = chatContainerRef.current
@@ -94,6 +97,9 @@ export default function ProposePage() {
           times: data.times,
           courses: data.courses,
         })
+        setSelectedCourseId(null)
+        setSelectedTimeIdx(0)
+        setPostError(null)
       }
     } catch {
       setChatMessages(prev => [
@@ -163,72 +169,94 @@ export default function ProposePage() {
   async function handlePostToTeetimes() {
     if (!userId || !readyData || posting) return
     setPosting(true)
+    setPostError(null)
 
-    // Use the first time and first course
-    const teeTime = readyData.times[0]
-    const course = readyData.courses[0]
+    try {
+      const teeTime = readyData.times[selectedTimeIdx] || readyData.times[0]
+      const course = selectedCourseId
+        ? readyData.courses.find(c => c.id === selectedCourseId) || readyData.courses[0]
+        : readyData.courses[0]
 
-    const { data: newMeetup } = await supabase
-      .from('meetups')
-      .insert({
-        title: readyData.title,
-        course_id: course.id || null,
-        tee_time: new Date(teeTime.dateTime).toISOString(),
-        max_players: groupSize,
-        description: readyData.times.length > 1
-          ? `Flexible times: ${readyData.times.map(t => t.label).join(', ')}`
-          : null,
-        organizer_id: userId,
-      })
-      .select()
-      .single()
+      const { data: newMeetup, error } = await supabase
+        .from('meetups')
+        .insert({
+          title: readyData.title,
+          course_id: course.id || null,
+          tee_time: new Date(teeTime.dateTime).toISOString(),
+          max_players: groupSize,
+          description: readyData.times.length > 1
+            ? `Flexible times: ${readyData.times.map(t => t.label).join(', ')}`
+            : null,
+          organizer_id: userId,
+        })
+        .select()
+        .single()
 
-    if (newMeetup) {
-      await supabase.from('meetup_attendees').insert({
-        meetup_id: newMeetup.id,
-        user_id: userId,
-      })
+      if (error) throw error
+
+      if (newMeetup) {
+        await supabase.from('meetup_attendees').insert({
+          meetup_id: newMeetup.id,
+          user_id: userId,
+        })
+      }
+
+      router.push('/tee-times')
+    } catch (err) {
+      console.error('Post tee time error:', err)
+      setPostError('Failed to post. Please try again.')
+    } finally {
+      setPosting(false)
     }
-
-    setPosting(false)
-    router.push('/tee-times')
   }
 
   async function handlePostLooking() {
     if (!userId || !readyData || posting) return
     setPosting(true)
+    setPostError(null)
 
-    const teeTime = readyData.times[0]
-    const date = new Date(teeTime.dateTime)
-    const hour = date.getHours()
-    const timeLabel = hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening'
-    const dayLabel = format(date, 'EEEE')
-    const area = readyData.courses[0]?.name?.split(' - ')[0] || 'the area'
+    try {
+      const teeTime = readyData.times[selectedTimeIdx] || readyData.times[0]
+      const date = new Date(teeTime.dateTime)
+      const hour = date.getHours()
+      const timeLabel = hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening'
+      const dayLabel = format(date, 'EEEE')
+      const course = selectedCourseId
+        ? readyData.courses.find(c => c.id === selectedCourseId) || readyData.courses[0]
+        : readyData.courses[0]
+      const area = course?.name?.split(' - ')[0] || 'the area'
 
-    const title = `Looking to play ${dayLabel} ${timeLabel} near ${area}`
+      const title = `Looking to play ${dayLabel} ${timeLabel} near ${area}`
 
-    const { data: newMeetup } = await supabase
-      .from('meetups')
-      .insert({
-        title,
-        course_id: null,
-        tee_time: date.toISOString(),
-        max_players: groupSize,
-        description: `Area: ${area}\n${profile?.handicap != null ? `Handicap: ${profile.handicap}` : ''}`,
-        organizer_id: userId,
-      })
-      .select()
-      .single()
+      const { data: newMeetup, error } = await supabase
+        .from('meetups')
+        .insert({
+          title,
+          course_id: null,
+          tee_time: date.toISOString(),
+          max_players: groupSize,
+          description: `Area: ${area}\n${profile?.handicap != null ? `Handicap: ${profile.handicap}` : ''}`,
+          organizer_id: userId,
+        })
+        .select()
+        .single()
 
-    if (newMeetup) {
-      await supabase.from('meetup_attendees').insert({
-        meetup_id: newMeetup.id,
-        user_id: userId,
-      })
+      if (error) throw error
+
+      if (newMeetup) {
+        await supabase.from('meetup_attendees').insert({
+          meetup_id: newMeetup.id,
+          user_id: userId,
+        })
+      }
+
+      router.push('/tee-times')
+    } catch (err) {
+      console.error('Post looking error:', err)
+      setPostError('Failed to post. Please try again.')
+    } finally {
+      setPosting(false)
     }
-
-    setPosting(false)
-    router.push('/tee-times')
   }
 
   return (
@@ -328,28 +356,63 @@ export default function ProposePage() {
                 </div>
 
                 {/* Summary */}
-                <div className="space-y-2">
+                <div className="space-y-3">
                   <p className="text-white font-medium text-sm">{readyData.title}</p>
-                  <div className="flex flex-wrap gap-2 text-xs text-gray-400">
-                    {readyData.times.slice(0, 3).map((t, i) => (
-                      <span key={i} className="inline-flex items-center gap-1 bg-dark-700 px-2 py-1 rounded-lg">
-                        <Calendar className="w-3 h-3 text-emerald-400" />
-                        {t.label}
+
+                  {/* Selectable times */}
+                  {readyData.times.length > 1 && (
+                    <div>
+                      <label className="block text-xs font-medium text-gray-400 mb-1.5">Pick a time</label>
+                      <div className="flex flex-wrap gap-2">
+                        {readyData.times.slice(0, 4).map((t, i) => (
+                          <button key={i} type="button" onClick={() => setSelectedTimeIdx(i)}
+                            className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                              selectedTimeIdx === i
+                                ? 'bg-emerald-600 text-white border border-emerald-500'
+                                : 'bg-dark-700 text-gray-400 border border-dark-600 hover:border-emerald-700 hover:text-gray-200'
+                            }`}>
+                            <Calendar className="w-3 h-3" />
+                            {t.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {readyData.times.length === 1 && (
+                    <div className="flex flex-wrap gap-2 text-xs text-gray-400">
+                      <span className="inline-flex items-center gap-1 bg-emerald-600 text-white px-2.5 py-1.5 rounded-lg font-medium border border-emerald-500">
+                        <Calendar className="w-3 h-3" />
+                        {readyData.times[0].label}
                       </span>
-                    ))}
-                    {readyData.courses.map((c, i) => {
-                      const tier = c.price_tier
-                      const tierLabel = tier === 1 ? '$' : tier === 2 ? '$$' : tier === 3 ? '$$$' : tier === 4 ? '$$$$' : null
-                      const tierColor = tier === 1 ? 'text-green-400' : tier === 2 ? 'text-emerald-400' : tier === 3 ? 'text-yellow-400' : tier === 4 ? 'text-orange-400' : ''
-                      return (
-                        <span key={i} className="inline-flex items-center gap-1 bg-dark-700 px-2 py-1 rounded-lg">
-                          <MapPin className="w-3 h-3 text-emerald-400" />
-                          {c.name}
-                          {tierLabel && <span className={`font-bold ${tierColor}`}>{tierLabel}</span>}
-                          {c.is_private && <span className="text-[10px] text-gray-500">Private</span>}
-                        </span>
-                      )
-                    })}
+                    </div>
+                  )}
+
+                  {/* Selectable courses */}
+                  <div>
+                    {readyData.courses.length > 1 && (
+                      <label className="block text-xs font-medium text-gray-400 mb-1.5">Pick a course</label>
+                    )}
+                    <div className="flex flex-wrap gap-2">
+                      {readyData.courses.map((c) => {
+                        const tier = c.price_tier
+                        const tierLabel = tier === 1 ? '$' : tier === 2 ? '$$' : tier === 3 ? '$$$' : tier === 4 ? '$$$$' : null
+                        const tierColor = tier === 1 ? 'text-green-400' : tier === 2 ? 'text-emerald-400' : tier === 3 ? 'text-yellow-400' : tier === 4 ? 'text-orange-400' : ''
+                        const isSelected = selectedCourseId ? selectedCourseId === c.id : readyData.courses[0]?.id === c.id
+                        return (
+                          <button key={c.id} type="button" onClick={() => setSelectedCourseId(c.id)}
+                            className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                              isSelected
+                                ? 'bg-emerald-600 text-white border border-emerald-500'
+                                : 'bg-dark-700 text-gray-400 border border-dark-600 hover:border-emerald-700 hover:text-gray-200'
+                            }`}>
+                            <MapPin className="w-3 h-3" />
+                            {c.name}
+                            {tierLabel && <span className={`font-bold ${isSelected ? 'text-white/80' : tierColor}`}>{tierLabel}</span>}
+                            {c.is_private && <span className="text-[10px] opacity-70">Private</span>}
+                          </button>
+                        )
+                      })}
+                    </div>
                   </div>
                 </div>
 
@@ -404,7 +467,14 @@ export default function ProposePage() {
             {posting && (
               <div className="bg-dark-900/80 rounded-2xl border border-emerald-800/40 p-6 flex items-center justify-center gap-3">
                 <div className="w-5 h-5 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin" />
-                <span className="text-sm text-emerald-400 font-medium">Posting to Tee Times...</span>
+                <span className="text-sm text-emerald-400 font-medium">Posting to The Board...</span>
+              </div>
+            )}
+
+            {/* Post error */}
+            {postError && !posting && (
+              <div className="bg-red-900/30 border border-red-800/50 text-red-300 text-sm px-4 py-3 rounded-xl">
+                {postError}
               </div>
             )}
           </div>

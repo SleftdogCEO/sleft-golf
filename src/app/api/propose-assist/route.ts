@@ -20,14 +20,17 @@ type CourseRow = {
 }
 
 let cachedCourses: CourseRow[] | null = null
+let cacheTime = 0
 
 async function getCourses(): Promise<CourseRow[]> {
-  if (cachedCourses) return cachedCourses
+  // Cache for 5 minutes
+  if (cachedCourses && Date.now() - cacheTime < 5 * 60 * 1000) return cachedCourses
   const { data } = await supabase
     .from('courses')
     .select('id, name, parent_club, city, state, price_tier, green_fee_estimate, is_private')
     .order('name')
   cachedCourses = data || []
+  cacheTime = Date.now()
   return cachedCourses
 }
 
@@ -101,6 +104,7 @@ Rules for COURSES:
 - Use the exact "id" from the course list. Use a display name like "Club - Course" or just "Course".
 - courses = [] if no location or course info given
 - Only suggest courses that exist in the list above. Never make up courses.
+- IMPORTANT: When suggesting courses for an area, suggest 3-5 courses from DIFFERENT clubs/venues. Do NOT just list multiple courses from the same club. Variety is key — show the user their options across different facilities.
 - Each course has a price tier: $ (under $50), $$ ($50-100), $$$ ($100-200), $$$$ ($200+/private).
 - If user mentions budget (e.g. "cheap", "affordable", "budget", "nothing too expensive"), prefer $ and $$ courses.
 - If user mentions wanting premium/nice/upscale courses, prefer $$$ and $$$$ courses.
