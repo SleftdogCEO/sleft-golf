@@ -28,6 +28,7 @@ export default function ProposePage() {
   const router = useRouter()
   const { userId, profile } = useUser()
   const chatContainerRef = useRef<HTMLDivElement>(null)
+  const chatBottomRef = useRef<HTMLDivElement>(null)
   const chatInputRef = useRef<HTMLInputElement>(null)
 
   // Chat state
@@ -56,8 +57,7 @@ export default function ProposePage() {
   const [postError, setPostError] = useState<string | null>(null)
 
   useEffect(() => {
-    const el = chatContainerRef.current
-    if (el) el.scrollTop = el.scrollHeight
+    setTimeout(() => chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 100)
   }, [chatMessages, chatLoading, readyData])
 
   async function sendMessage(text: string) {
@@ -444,6 +444,8 @@ export default function ProposePage() {
                 {postError}
               </div>
             )}
+
+            <div ref={chatBottomRef} />
           </div>
 
           {/* Quick Replies */}
