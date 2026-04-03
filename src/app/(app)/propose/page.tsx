@@ -52,19 +52,18 @@ export default function ProposePage() {
     openSpots: number
   } | null>(null)
   const [posting, setPosting] = useState(false)
+  const [wantMore, setWantMore] = useState<boolean | null>(null)
   const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null)
   const [selectedTimeIdx, setSelectedTimeIdx] = useState(0)
   const [postError, setPostError] = useState<string | null>(null)
 
+  const hasInteracted = useRef(false)
   useEffect(() => {
-    // Only auto-scroll when there are multiple messages (not on initial load)
-    if (chatMessages.length > 1 || chatLoading || readyData) {
-      setTimeout(() => {
-        const el = chatContainerRef.current
-        if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' })
-      }, 100)
+    if (chatMessages.length > 1) hasInteracted.current = true
+    if (hasInteracted.current) {
+      setTimeout(() => chatBottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }), 150)
     }
-  }, [chatMessages, chatLoading, readyData])
+  }, [chatMessages, chatLoading, readyData, wantMore])
 
   async function sendMessage(text: string) {
     if (!text.trim() || chatLoading) return
@@ -109,6 +108,7 @@ export default function ProposePage() {
         })
         setSelectedCourseId(null)
         setSelectedTimeIdx(0)
+        setWantMore(data.open_spots > 0 ? true : null)
         setPostError(null)
       }
     } catch {
@@ -205,7 +205,7 @@ export default function ProposePage() {
           title: readyData.title,
           course_id: course.id && course.id.length > 10 ? course.id : null,
           tee_time: new Date(teeTime.dateTime).toISOString(),
-          max_players: readyData.confirmed + readyData.openSpots,
+          max_players: readyData.confirmed + (wantMore ? Math.max(readyData.openSpots, 1) : readyData.openSpots),
           confirmed_count: readyData.confirmed,
           description: [
             readyData.times.length > 1 ? `Flexible times: ${readyData.times.map(t => t.label).join(', ')}` : null,
@@ -387,14 +387,29 @@ export default function ProposePage() {
                 </div>
 
                 {/* Player summary */}
-                <div className="flex items-center gap-2">
-                  <Users className="w-3.5 h-3.5 text-gray-400" />
-                  <span className="text-sm text-gray-300">
-                    {readyData.confirmed} confirmed{readyData.confirmed === 1 ? ' (just you)' : ` (you + ${readyData.confirmed - 1})`}
-                    {readyData.openSpots > 0 && (
-                      <span className="text-emerald-400"> · {readyData.openSpots} open spot{readyData.openSpots !== 1 ? 's' : ''}</span>
-                    )}
-                  </span>
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Users className="w-3.5 h-3.5 text-gray-400" />
+                    <span className="text-sm text-gray-300">
+                      {readyData.confirmed} confirmed{readyData.confirmed === 1 ? ' (just you)' : ` (you + ${readyData.confirmed - 1})`}
+                      {(readyData.openSpots > 0 || wantMore) && (
+                        <span className="text-emerald-400"> · {Math.max(readyData.openSpots, 1)} open spot{Math.max(readyData.openSpots, 1) !== 1 ? 's' : ''}</span>
+                      )}
+                    </span>
+                  </div>
+                  {readyData.openSpots === 0 && wantMore === null && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-gray-400">Need more players?</span>
+                      <button type="button" onClick={() => setWantMore(true)}
+                        className="px-3 py-1 rounded-lg text-xs font-medium bg-emerald-600 text-white hover:bg-emerald-500 transition-colors">
+                        Yes
+                      </button>
+                      <button type="button" onClick={() => setWantMore(false)}
+                        className="px-3 py-1 rounded-lg text-xs font-medium bg-dark-700 text-gray-400 border border-dark-600 hover:text-white transition-colors">
+                        No, we&apos;re set
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 {/* Post Button */}
