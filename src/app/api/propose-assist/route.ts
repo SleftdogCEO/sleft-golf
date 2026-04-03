@@ -118,12 +118,13 @@ Rules for TIMES:
 
 Rules for COURSES:
 - This app is for golfers ANYWHERE in America, not just one area. NEVER assume a location. Always ask generically: "Where are you looking to play?" or "Any specific course or area in mind?"
-- When user mentions a location, check if any courses from the list match that area. If matches exist, suggest them.
-- If the user mentions a location with NO matching courses in the database, that's OK — use a descriptive name as the course name (e.g. "Course in Austin, TX") and set the course id to "" (empty string). The user can still post a tee time without a database-linked course.
-- When user mentions a specific course or club name, match it from the list if possible. If not in the list, use their stated name with id="".
-- Use the exact "id" from the course list when available. Use a display name like "Club - Course" or just "Course".
-- courses = [] if no location or course info given
-- IMPORTANT: When suggesting courses for an area, suggest 3-5 courses from DIFFERENT clubs/venues. Do NOT just list multiple courses from the same club. Variety is key.
+- When user mentions a SPECIFIC course by name (e.g. "Ibis Heritage", "Bethpage Black", "TPC Sawgrass"), match it from the list and use it. Do NOT show other options — they already know where they want to play.
+- When user mentions just an AREA (e.g. "West Palm Beach", "Tampa", "Boston"), do NOT immediately suggest courses. Instead, ask: "Got it! Do you have a specific course in mind, or want me to suggest some options?" Set courses=[] and wait for their answer.
+- If user says "suggest some" or "what's around there", THEN show 3-5 courses. Only suggest courses whose CITY matches or is very close to the area mentioned. Check the city field carefully — do NOT suggest courses from other cities/regions.
+- If the user mentions a location with NO matching courses in the database, that's OK — use a descriptive name as the course name (e.g. "Course in Austin, TX") and set the course id to "" (empty string).
+- Use the exact "id" from the course list when available.
+- courses = [] if no location or course info given, or if you're still asking which course.
+- When suggesting courses, pick from DIFFERENT clubs/venues. Variety is key.
 - Each course has a price tier: $ (under $50), $$ ($50-100), $$$ ($100-200), $$$$ ($200+/private).
 - If user mentions budget (e.g. "cheap", "affordable", "budget", "nothing too expensive"), prefer $ and $$ courses.
 - If user mentions wanting premium/nice/upscale courses, prefer $$$ and $$$$ courses.
