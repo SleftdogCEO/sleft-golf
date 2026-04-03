@@ -16,6 +16,8 @@ import {
   Award,
   Search,
   Hand,
+  Pencil,
+  Trash2,
 } from 'lucide-react'
 import { format, formatDistanceToNow, isPast } from 'date-fns'
 import { useUser } from '@/hooks/use-user'
@@ -97,6 +99,15 @@ export default function TeeTimesPage() {
   const [joining, setJoining] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
+  const [deleteId, setDeleteId] = useState<string | null>(null)
+  const [deleting, setDeleting] = useState(false)
+  const [editMeetup, setEditMeetup] = useState<Meetup | null>(null)
+  const [editTitle, setEditTitle] = useState('')
+  const [editDateTime, setEditDateTime] = useState('')
+  const [editMaxPlayers, setEditMaxPlayers] = useState(4)
+  const [editCourseId, setEditCourseId] = useState('')
+  const [editDescription, setEditDescription] = useState('')
+  const [saving, setSaving] = useState(false)
 
   // Looking to Play form
   const [ltpDay, setLtpDay] = useState('')
@@ -200,6 +211,41 @@ export default function TeeTimesPage() {
     await supabase.from('meetup_attendees').delete().eq('meetup_id', meetupId).eq('user_id', user.id)
     await fetchMeetups()
     setJoining(null)
+  }
+
+  async function handleDelete(meetupId: string) {
+    setDeleting(true)
+    await supabase.from('meetups').delete().eq('id', meetupId)
+    setDeleteId(null)
+    setDeleting(false)
+    await fetchMeetups()
+  }
+
+  function openEdit(meetup: Meetup) {
+    setEditMeetup(meetup)
+    setEditTitle(meetup.title)
+    setEditDateTime(format(new Date(meetup.tee_time), "yyyy-MM-dd'T'HH:mm"))
+    setEditMaxPlayers(meetup.max_players)
+    setEditCourseId(meetup.course_id || '')
+    setEditDescription(meetup.description || '')
+  }
+
+  async function handleEditSave() {
+    if (!editMeetup || !editTitle.trim() || !editDateTime) return
+    setSaving(true)
+    await supabase
+      .from('meetups')
+      .update({
+        title: editTitle.trim(),
+        tee_time: new Date(editDateTime).toISOString(),
+        max_players: editMaxPlayers,
+        course_id: editCourseId || null,
+        description: editDescription.trim() || null,
+      })
+      .eq('id', editMeetup.id)
+    setEditMeetup(null)
+    setSaving(false)
+    await fetchMeetups()
   }
 
   // Looking to Play submit
@@ -886,12 +932,32 @@ export default function TeeTimesPage() {
                           ) : null}
                         </>
                       )}
-                      {attending && (
+                      {attending && !isOrganizer && (
                         <span className="inline-flex items-center gap-1 text-xs text-emerald-400 font-medium">
                           <Check className="w-3.5 h-3.5" />
-                          You&apos;re locked in
+                          You&apos;re in
                         </span>
                       )}
+
+                      {/* Edit / Delete for organizer and attendees */}
+                      {status !== 'past' && (isOrganizer || attending) && (
+                        <button
+                          onClick={() => openEdit(meetup)}
+                          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm text-gray-400 hover:text-white hover:bg-dark-600 transition-colors"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                          Edit
+                        </button>
+                      )}
+                      {status !== 'past' && isOrganizer && (
+                        <button
+                          onClick={() => setDeleteId(meetup.id)}
+                          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm text-gray-400 hover:text-red-400 hover:bg-red-900/20 transition-colors"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+
                       <Link href={`/tee-times/${meetup.id}`} className="ml-auto inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm text-emerald-400 hover:text-emerald-300 hover:bg-emerald-900/30 font-medium transition-colors">
                         <MessageCircle className="w-4 h-4" />
                         Group Chat
@@ -905,6 +971,120 @@ export default function TeeTimesPage() {
           </div>
         )}
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {deleteId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" onClick={() => !deleting && setDeleteId(null)}>
+          <div className="bg-dark-800 rounded-2xl border border-dark-700 p-6 max-w-sm w-full" onClick={e => e.stopPropagation()}>
+            <h3 className="text-white font-semibold text-lg mb-2">Delete Tee Time?</h3>
+            <p className="text-gray-400 text-sm mb-6">This will remove the tee time from The Board and notify all attendees. This can&apos;t be undone.</p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => handleDelete(deleteId)}
+                disabled={deleting}
+                className="flex-1 py-2.5 rounded-xl text-sm font-semibold bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 transition-colors"
+              >
+                {deleting ? 'Deleting...' : 'Delete'}
+              </button>
+              <button
+                onClick={() => setDeleteId(null)}
+                disabled={deleting}
+                className="flex-1 py-2.5 rounded-xl text-sm font-medium bg-dark-700 text-gray-300 hover:bg-dark-600 border border-dark-600 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Modal */}
+      {editMeetup && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" onClick={() => !saving && setEditMeetup(null)}>
+          <div className="bg-dark-800 rounded-2xl border border-dark-700 p-6 max-w-md w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <h3 className="text-white font-semibold text-lg mb-4">Edit Tee Time</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-gray-400 mb-1.5">Title</label>
+                <input
+                  type="text"
+                  value={editTitle}
+                  onChange={e => setEditTitle(e.target.value)}
+                  className="w-full bg-dark-700 border border-dark-600 rounded-xl px-4 py-2.5 text-gray-100 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-400 mb-1.5">Date &amp; Time</label>
+                <input
+                  type="datetime-local"
+                  value={editDateTime}
+                  onChange={e => setEditDateTime(e.target.value)}
+                  className="w-full bg-dark-700 border border-dark-600 rounded-xl px-4 py-2.5 text-gray-100 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-400 mb-1.5">Course</label>
+                <select
+                  value={editCourseId}
+                  onChange={e => setEditCourseId(e.target.value)}
+                  className="w-full bg-dark-700 border border-dark-600 rounded-xl px-4 py-2.5 text-gray-100 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none"
+                >
+                  <option value="">No specific course</option>
+                  {courses.map(c => (
+                    <option key={c.id} value={c.id}>
+                      {c.parent_club ? `${c.parent_club} - ` : ''}{c.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-400 mb-1.5">Max Players</label>
+                <div className="flex gap-2">
+                  {[2, 3, 4, 5, 6].map(n => (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() => setEditMaxPlayers(n)}
+                      className={`flex-1 py-2 rounded-xl text-sm font-medium transition-colors ${
+                        editMaxPlayers === n
+                          ? 'bg-emerald-600 text-white'
+                          : 'bg-dark-700 text-gray-400 hover:text-white hover:bg-dark-600 border border-dark-600'
+                      }`}
+                    >
+                      {n}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-400 mb-1.5">Notes</label>
+                <textarea
+                  value={editDescription}
+                  onChange={e => setEditDescription(e.target.value)}
+                  rows={2}
+                  className="w-full bg-dark-700 border border-dark-600 rounded-xl px-4 py-2.5 text-gray-100 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none resize-none"
+                />
+              </div>
+            </div>
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={handleEditSave}
+                disabled={saving || !editTitle.trim() || !editDateTime}
+                className="flex-1 py-2.5 rounded-xl text-sm font-semibold bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 transition-colors"
+              >
+                {saving ? 'Saving...' : 'Save Changes'}
+              </button>
+              <button
+                onClick={() => setEditMeetup(null)}
+                disabled={saving}
+                className="flex-1 py-2.5 rounded-xl text-sm font-medium bg-dark-700 text-gray-300 hover:bg-dark-600 border border-dark-600 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
