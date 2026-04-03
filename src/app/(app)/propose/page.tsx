@@ -229,8 +229,8 @@ export default function ProposePage() {
 
 
   return (
-    <div className="bg-dark-950 flex flex-col -mx-4 sm:-mx-6 lg:-mx-8 -mb-8" style={{ height: 'calc(100dvh - 5rem - env(safe-area-inset-top, 0px))' }}>
-      <div className="max-w-2xl mx-auto px-4 pt-2 pb-2 flex flex-col flex-1 min-h-0 w-full">
+    <div className="fixed inset-0 bg-dark-950 flex flex-col" style={{ top: 'calc(3.5rem + env(safe-area-inset-top, 0px))', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+      <div className="max-w-2xl mx-auto px-3 py-2 flex flex-col flex-1 min-h-0 w-full">
 
         {/* Sleft Caddie Chat */}
         <div className="bg-gradient-to-br from-dark-800 to-emerald-950/20 rounded-2xl border border-emerald-900/30 overflow-hidden shadow-xl shadow-emerald-900/10 flex flex-col flex-1 min-h-0">
