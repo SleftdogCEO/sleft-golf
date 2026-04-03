@@ -141,9 +141,9 @@ export function PostComments({ postId, userId, onCountChange }: PostCommentsProp
           <button
             type="submit"
             disabled={submitting || !newComment.trim()}
-            className="p-2 text-emerald-500 hover:text-emerald-400 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            className="p-3 -mr-1 text-emerald-500 hover:text-emerald-400 active:text-emerald-300 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
           >
-            <Send className="w-4 h-4" />
+            <Send className="w-5 h-5" />
           </button>
         </form>
       ) : (

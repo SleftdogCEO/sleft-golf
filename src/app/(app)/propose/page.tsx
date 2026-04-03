@@ -177,22 +177,27 @@ export default function ProposePage() {
         ? readyData.courses.find(c => c.id === selectedCourseId) || readyData.courses[0]
         : readyData.courses[0]
 
+      const insertData = {
+        title: readyData.title,
+        course_id: course.id || null,
+        tee_time: new Date(teeTime.dateTime).toISOString(),
+        max_players: groupSize,
+        description: readyData.times.length > 1
+          ? `Flexible times: ${readyData.times.map(t => t.label).join(', ')}`
+          : null,
+        organizer_id: userId,
+      }
+
       const { data: newMeetup, error } = await supabase
         .from('meetups')
-        .insert({
-          title: readyData.title,
-          course_id: course.id || null,
-          tee_time: new Date(teeTime.dateTime).toISOString(),
-          max_players: groupSize,
-          description: readyData.times.length > 1
-            ? `Flexible times: ${readyData.times.map(t => t.label).join(', ')}`
-            : null,
-          organizer_id: userId,
-        })
+        .insert(insertData)
         .select()
         .single()
 
-      if (error) throw error
+      if (error) {
+        console.error('Meetup insert error:', JSON.stringify(error))
+        throw new Error(error.message || 'Failed to create meetup')
+      }
 
       if (newMeetup) {
         await supabase.from('meetup_attendees').insert({
@@ -202,9 +207,9 @@ export default function ProposePage() {
       }
 
       router.push('/tee-times')
-    } catch (err) {
+    } catch (err: any) {
       console.error('Post tee time error:', err)
-      setPostError('Failed to post. Please try again.')
+      setPostError(err?.message || 'Failed to post. Please try again.')
     } finally {
       setPosting(false)
     }
@@ -241,7 +246,10 @@ export default function ProposePage() {
         .select()
         .single()
 
-      if (error) throw error
+      if (error) {
+        console.error('Meetup insert error:', JSON.stringify(error))
+        throw new Error(error.message || 'Failed to create meetup')
+      }
 
       if (newMeetup) {
         await supabase.from('meetup_attendees').insert({
@@ -251,9 +259,9 @@ export default function ProposePage() {
       }
 
       router.push('/tee-times')
-    } catch (err) {
+    } catch (err: any) {
       console.error('Post looking error:', err)
-      setPostError('Failed to post. Please try again.')
+      setPostError(err?.message || 'Failed to post. Please try again.')
     } finally {
       setPosting(false)
     }
@@ -309,20 +317,28 @@ export default function ProposePage() {
                     </div>
                   )}
 
-                  {/* Show suggested courses with pricing */}
+                  {/* Show suggested courses with pricing — clickable to select */}
                   {msg.role === 'assistant' && msg.courses && msg.courses.length > 0 && (
                     <div className="mt-1.5 flex flex-wrap gap-1">
                       {msg.courses.map((c, j) => {
                         const tier = c.price_tier
                         const tierLabel = tier === 1 ? '$' : tier === 2 ? '$$' : tier === 3 ? '$$$' : tier === 4 ? '$$$$' : null
                         const tierColor = tier === 1 ? 'text-green-400' : tier === 2 ? 'text-emerald-400' : tier === 3 ? 'text-yellow-400' : tier === 4 ? 'text-orange-400' : ''
+                        // Extract short name for quick reply (e.g., "Heritage Course" from "Ibis Golf & Country Club - Heritage Course")
+                        const shortName = c.name.includes(' - ') ? c.name.split(' - ')[1] : c.name
                         return (
-                          <span key={j} className="inline-flex items-center gap-1.5 bg-dark-700 border border-dark-600 px-2.5 py-1 rounded-lg text-xs text-gray-300">
+                          <button
+                            key={j}
+                            type="button"
+                            onClick={() => { if (!chatLoading && !posting && !readyData) sendMessage(shortName) }}
+                            disabled={chatLoading || posting || !!readyData}
+                            className="inline-flex items-center gap-1.5 bg-dark-700 border border-dark-600 px-2.5 py-1.5 rounded-lg text-xs text-gray-300 hover:bg-emerald-900/30 hover:border-emerald-800/50 hover:text-emerald-400 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-default disabled:hover:bg-dark-700 disabled:hover:border-dark-600 disabled:hover:text-gray-300"
+                          >
                             <MapPin className="w-3 h-3 text-emerald-400" />
                             {c.name}
                             {tierLabel && <span className={`font-bold ${tierColor} ml-0.5`}>{tierLabel}</span>}
                             {c.is_private && <span className="text-[10px] text-gray-500 ml-0.5">Private</span>}
-                          </span>
+                          </button>
                         )
                       })}
                     </div>
