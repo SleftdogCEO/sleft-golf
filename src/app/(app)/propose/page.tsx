@@ -34,7 +34,7 @@ export default function ProposePage() {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
     {
       role: 'assistant',
-      content: "Hey, I'm your Sleft Caddie! Tell me when you want to play, what area, and how many players you need — I'll get it posted to Tee Times for you.",
+      content: "Hey, I'm your Sleft Caddie! Tell me when and where you want to play and I'll get it posted to The Board.",
       times: [],
       title: null,
     },
@@ -127,13 +127,14 @@ export default function ProposePage() {
     if (!lastMsg || lastMsg.role !== 'assistant') return []
     const text = lastMsg.content.toLowerCase()
 
-    // Asking about player count
-    if (/how many player|how many.*total|how many.*joining|how many.*confirmed|including you/i.test(text)) {
+    // Asking about player count (only on follow-up messages, not the greeting)
+    if (chatMessages.length > 1 && /how many player|how many.*total|how many.*joining|how many.*confirmed|including you/i.test(text)) {
       return [
         { label: 'Just me', value: 'Just me' },
-        { label: '2 players', value: '2 players total' },
-        { label: '3 players', value: '3 players total' },
-        { label: '4 players', value: '4 players total' },
+        { label: '2 of us', value: '2 of us' },
+        { label: '3 of us', value: '3 of us' },
+        { label: 'Full foursome', value: 'Full foursome, 4 players' },
+        { label: 'Need a 4th', value: 'We have 3, need a 4th' },
       ]
     }
 
