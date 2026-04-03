@@ -98,15 +98,20 @@ export default function CalendarPage() {
 
   async function fetchMeetups() {
     setLoading(true)
-    const { data, error } = await supabase
-      .from('meetups')
-      .select('*, profiles(id, full_name, avatar_url, username, handicap, location), courses(*), meetup_attendees(*, profiles(id, full_name, avatar_url, username, handicap, location))')
-      .gte('tee_time', dateRange.start)
-      .lte('tee_time', dateRange.end)
-      .order('tee_time', { ascending: true })
-
-    if (error) console.error('Calendar fetch error:', error.message)
-    setMeetups(data || [])
+    try {
+      const res = await fetch(`/api/meetups/calendar?start=${encodeURIComponent(dateRange.start)}&end=${encodeURIComponent(dateRange.end)}`)
+      if (res.ok) {
+        const data = await res.json()
+        setMeetups(data || [])
+      } else {
+        const err = await res.json().catch(() => ({}))
+        console.error('Calendar fetch error:', err.error || res.statusText)
+        setMeetups([])
+      }
+    } catch (err) {
+      console.error('Calendar fetch error:', err)
+      setMeetups([])
+    }
     setLoading(false)
   }
 
