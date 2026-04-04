@@ -154,10 +154,28 @@ export async function POST(req: NextRequest) {
   try {
     const { messages, timezone } = await req.json()
     const tz = timezone || 'America/New_York'
-    const courses = await getCourses()
+    const allCourses = await getCourses()
+
+    // Only include courses in prompt when user has mentioned a location/course.
+    // This keeps early messages (day/time selection) fast and reliable.
+    const allUserText = messages
+      .filter((m: { role: string }) => m.role === 'user')
+      .map((m: { content: string }) => m.content)
+      .join(' ')
+      .toLowerCase()
+    const needsCourses = allUserText.length > 5 && (
+      allCourses.some(c =>
+        allUserText.includes(c.name.toLowerCase().slice(0, 4)) ||
+        (c.parent_club && allUserText.includes(c.parent_club.toLowerCase().slice(0, 4))) ||
+        (c.city && allUserText.includes(c.city.toLowerCase()))
+      ) ||
+      // Generic location signals
+      /\b(near|around|in |at |course|club|links|west palm|palm beach|jupiter|tampa|orlando|miami|fort|boca|naples|jax|jacksonville|stuart|vero|port st|delray)\b/.test(allUserText)
+    )
+    const courses = needsCourses ? allCourses : []
 
     const response = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
+      model: 'gpt-4o',
       max_tokens: 2048,
       response_format: { type: 'json_object' },
       messages: [
@@ -185,11 +203,6 @@ export async function POST(req: NextRequest) {
     let times: { dateTime: string; label: string }[] = Array.isArray(parsed.times) ? parsed.times : []
 
     // Server-side exclusion filter: scan ALL user messages for excluded days
-    const allUserText = messages
-      .filter((m: { role: string }) => m.role === 'user')
-      .map((m: { content: string }) => m.content)
-      .join(' ')
-      .toLowerCase()
     const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
 
     // Check if exclusion keywords appear anywhere in the conversation
@@ -221,7 +234,7 @@ export async function POST(req: NextRequest) {
     times = times.slice(0, 7)
 
     // Validate course IDs against actual courses and attach pricing
-    const courseMap = new Map(courses.map(c => [c.id, c]))
+    const courseMap = new Map(allCourses.map(c => [c.id, c]))
     let suggestedCourses: { id: string; name: string; price_tier: number | null; green_fee_estimate: number | null; is_private: boolean }[] = []
     if (Array.isArray(parsed.courses)) {
       suggestedCourses = parsed.courses
@@ -246,9 +259,9 @@ export async function POST(req: NextRequest) {
     if (isFinalMsg && (times.length === 0 || suggestedCourses.length === 0 || confirmed == null)) {
       const allConvoText = messages.map((m: { content: string }) => m.content).join(' ')
 
-      // Recover courses: match course names from conversation against DB
+      // Recover courses: match course names from conversation against full DB
       if (suggestedCourses.length === 0) {
-        for (const c of courses) {
+        for (const c of allCourses) {
           const names = [c.name.toLowerCase()]
           if (c.parent_club) names.push(c.parent_club.toLowerCase())
           if (names.some(n => allConvoText.toLowerCase().includes(n))) {
