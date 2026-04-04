@@ -43,6 +43,11 @@ export default function ProposePage() {
   const [chatInput, setChatInput] = useState('')
   const [chatLoading, setChatLoading] = useState(false)
 
+  // Accumulated state across messages (AI may not repeat all data in every response)
+  const accTimesRef = useRef<{ dateTime: string; label: string }[]>([])
+  const accCoursesRef = useRef<CourseChip[]>([])
+  const accTitleRef = useRef<string>('Golf round')
+
   // Ready-to-post state (set when AI returns complete data)
   const [readyData, setReadyData] = useState<{
     title: string
@@ -118,12 +123,21 @@ export default function ProposePage() {
 
       setChatMessages(prev => [...prev, assistantMsg])
 
-      // If we have times AND courses AND confirmed count, the round is ready to post
-      if (data.times?.length > 0 && data.courses?.length > 0 && data.confirmed != null) {
+      // Accumulate state across messages — AI may not repeat all data each time
+      if (data.times?.length > 0) accTimesRef.current = data.times
+      if (data.courses?.length > 0) accCoursesRef.current = data.courses
+      if (data.title) accTitleRef.current = data.title
+
+      // Use accumulated state: ready when we have times + courses + confirmed
+      const bestTimes = data.times?.length > 0 ? data.times : accTimesRef.current
+      const bestCourses = data.courses?.length > 0 ? data.courses : accCoursesRef.current
+      const bestTitle = data.title || accTitleRef.current || 'Golf round'
+
+      if (bestTimes.length > 0 && bestCourses.length > 0 && data.confirmed != null) {
         setReadyData({
-          title: data.title || 'Golf round',
-          times: data.times,
-          courses: data.courses,
+          title: bestTitle,
+          times: bestTimes,
+          courses: bestCourses,
           confirmed: data.confirmed,
           openSpots: data.open_spots || 0,
         })

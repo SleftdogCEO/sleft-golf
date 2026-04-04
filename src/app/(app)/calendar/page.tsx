@@ -407,30 +407,40 @@ export default function CalendarPage() {
                   }`}
                 >
                   <div className="p-5">
-                    <div className="flex items-start gap-4 mb-4">
-                      <div className="flex-shrink-0 bg-dark-700 rounded-xl px-3 py-2.5 text-center min-w-[60px]">
-                        <p className="text-xl font-black text-white leading-none">{format(teeTime, 'h:mm')}</p>
-                        <p className="text-[10px] font-medium text-gray-500 uppercase mt-0.5">{format(teeTime, 'a')}</p>
+                    {/* Top row: time + info + actions */}
+                    <div className="flex items-start gap-4 mb-3">
+                      <div className="flex-shrink-0 bg-emerald-900/30 border border-emerald-800/30 rounded-xl px-3 py-2.5 text-center min-w-[60px]">
+                        <p className="text-xl font-black text-emerald-400 leading-none">{format(teeTime, 'h:mm')}</p>
+                        <p className="text-[10px] font-semibold text-emerald-500/70 uppercase mt-0.5">{format(teeTime, 'a')}</p>
                       </div>
 
                       <div className="flex-1 min-w-0">
-                        <h3 className="font-semibold text-white text-sm truncate">{meetup.title}</h3>
+                        <h3 className="font-bold text-white text-[15px] leading-tight truncate">{meetup.title}</h3>
                         {course && (
                           <div className="flex items-center gap-1.5 mt-1">
                             <MapPin className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" />
-                            <span className="text-xs text-gray-400 truncate">
+                            <span className="text-xs font-medium text-emerald-400/80 truncate">
                               {course.parent_club ? `${course.parent_club} - ` : ''}{course.name}
                             </span>
                           </div>
                         )}
-                        {isOpen && (
-                          <div className="flex items-center gap-1.5 mt-1.5">
-                            <Clock className="w-3 h-3 text-amber-500" />
-                            <span className="text-xs font-medium text-amber-400">
-                              {spotsLeft} spot{spotsLeft !== 1 ? 's' : ''} open
-                            </span>
-                          </div>
-                        )}
+                        <div className="flex items-center gap-3 mt-1.5">
+                          <span className="text-[11px] text-gray-400">
+                            by <span className="font-medium text-gray-200">{meetup.profiles?.full_name?.split(' ')[0] || 'Unknown'}</span>
+                          </span>
+                          <span className="text-dark-600">·</span>
+                          <span className="text-[11px] text-gray-500">
+                            {getPlayerCount(meetup)}/{meetup.max_players} players
+                          </span>
+                          {isOpen && (
+                            <>
+                              <span className="text-dark-600">·</span>
+                              <span className="text-[11px] font-semibold text-amber-400">
+                                {spotsLeft} open
+                              </span>
+                            </>
+                          )}
+                        </div>
                       </div>
 
                       <div className="flex-shrink-0 flex items-center gap-1.5">
@@ -459,17 +469,24 @@ export default function CalendarPage() {
                       </div>
                     </div>
 
+                    {/* Description excerpt (if available) */}
+                    {meetup.description && (
+                      <p className="text-[11px] text-gray-500 mb-3 line-clamp-1 pl-[76px]">
+                        {meetup.description.split('\n')[0]}
+                      </p>
+                    )}
+
                     {/* Players */}
                     <div className="flex items-center gap-3">
                       <div className="flex -space-x-2">
                         {players.map((player, idx) => (
                           <div key={player.id}
-                            className={`w-9 h-9 rounded-full border-2 border-dark-800 flex items-center justify-center overflow-hidden ${idx === 0 ? 'bg-emerald-600/20' : 'bg-dark-700'}`}
+                            className={`w-9 h-9 rounded-full border-2 border-dark-800 flex items-center justify-center overflow-hidden ${idx === 0 ? 'bg-emerald-600/20 ring-1 ring-emerald-700/40' : 'bg-dark-700'}`}
                             title={player.full_name || undefined}>
                             {player.avatar_url ? (
                               <img src={player.avatar_url} alt="" className="w-full h-full object-cover" />
                             ) : (
-                              <span className={`text-xs font-bold ${idx === 0 ? 'text-emerald-400' : 'text-gray-400'}`}>
+                              <span className={`text-xs font-bold ${idx === 0 ? 'text-emerald-400' : 'text-gray-300'}`}>
                                 {player.full_name?.charAt(0)?.toUpperCase() || '?'}
                               </span>
                             )}
@@ -482,13 +499,13 @@ export default function CalendarPage() {
                         ))}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs text-gray-400 truncate">
+                        <p className="text-xs text-gray-200 truncate font-medium">
                           {players.map(p => p.full_name?.split(' ')[0]).join(', ')}
-                          {isOpen ? ` + ${spotsLeft} open` : ''}
+                          {isOpen ? <span className="text-gray-500 font-normal"> + {spotsLeft} open</span> : ''}
                         </p>
                         {players.some(p => p.handicap != null) && (
-                          <p className="text-[10px] text-gray-600 mt-0.5">
-                            Handicaps: {players.filter(p => p.handicap != null).map(p => p.handicap).join(', ')}
+                          <p className="text-[10px] text-gray-500 mt-0.5">
+                            HCP: {players.filter(p => p.handicap != null).map(p => `${p.full_name?.split(' ')[0]} ${p.handicap}`).join(' · ')}
                           </p>
                         )}
                       </div>
