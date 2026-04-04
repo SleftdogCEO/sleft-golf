@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, useMemo } from 'react'
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Calendar, MapPin, Send, Bot, User as UserIcon, Check, Users, Clock } from 'lucide-react'
@@ -56,6 +56,27 @@ export default function ProposePage() {
   const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null)
   const [selectedTimeIdx, setSelectedTimeIdx] = useState(0)
   const [postError, setPostError] = useState<string | null>(null)
+  const [keyboardHeight, setKeyboardHeight] = useState(0)
+
+  // Handle keyboard show/hide for iOS
+  useEffect(() => {
+    let cleanup: (() => void) | undefined
+    ;(async () => {
+      try {
+        const { Keyboard } = await import('@capacitor/keyboard')
+        const showListener = await Keyboard.addListener('keyboardWillShow', info => {
+          setKeyboardHeight(info.keyboardHeight)
+        })
+        const hideListener = await Keyboard.addListener('keyboardWillHide', () => {
+          setKeyboardHeight(0)
+        })
+        cleanup = () => { showListener.remove(); hideListener.remove() }
+      } catch {
+        // Not on native platform, ignore
+      }
+    })()
+    return () => cleanup?.()
+  }, [])
 
   const hasInteracted = useRef(false)
   useEffect(() => {
@@ -63,7 +84,7 @@ export default function ProposePage() {
     if (hasInteracted.current) {
       setTimeout(() => chatBottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }), 150)
     }
-  }, [chatMessages, chatLoading, readyData, wantMore])
+  }, [chatMessages, chatLoading, readyData, wantMore, keyboardHeight])
 
   async function sendMessage(text: string) {
     if (!text.trim() || chatLoading) return
@@ -229,7 +250,7 @@ export default function ProposePage() {
 
 
   return (
-    <div className="fixed inset-0 bg-dark-950 flex flex-col" style={{ top: 'calc(3.5rem + env(safe-area-inset-top, 0px))', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+    <div className="fixed inset-0 bg-dark-950 flex flex-col transition-all duration-200" style={{ top: 'calc(3.5rem + env(safe-area-inset-top, 0px))', bottom: keyboardHeight > 0 ? `${keyboardHeight}px` : 'env(safe-area-inset-bottom, 0px)' }}>
       <div className="max-w-2xl mx-auto px-3 py-2 flex flex-col flex-1 min-h-0 w-full">
 
         {/* Sleft Caddie Chat */}
