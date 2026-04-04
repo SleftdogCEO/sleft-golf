@@ -233,11 +233,17 @@ export default function ProposePage() {
         ? readyData.courses.find(c => c.id === selectedCourseId) || readyData.courses[0]
         : readyData.courses[0]
 
+      // Generate a better title if the AI gave something generic
+      let title = readyData.title
+      if (!title || /^(golf round|book your round|tee time|your round)$/i.test(title.trim())) {
+        title = course?.name ? `Round at ${course.name}` : 'Golf Round'
+      }
+
       const res = await fetch('/api/meetups', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          title: readyData.title,
+          title,
           course_id: course.id && course.id.length > 10 ? course.id : null,
           tee_time: new Date(teeTime.dateTime).toISOString(),
           max_players: readyData.confirmed + (wantMore ? Math.max(readyData.openSpots, 1) : readyData.openSpots),
@@ -447,31 +453,6 @@ export default function ProposePage() {
                   )}
                 </div>
 
-                {/* Post Button */}
-                <div className="pt-1">
-                  <button
-                    onClick={handlePostToTeetimes}
-                    className="w-full inline-flex items-center justify-center gap-2 bg-emerald-600 text-white px-4 py-3 rounded-xl font-semibold text-sm hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-900/30"
-                  >
-                    <Calendar className="w-4 h-4" />
-                    Post to The Board
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Posting spinner */}
-            {posting && (
-              <div className="bg-dark-900/80 rounded-2xl border border-emerald-800/40 p-6 flex items-center justify-center gap-3">
-                <div className="w-5 h-5 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin" />
-                <span className="text-sm text-emerald-400 font-medium">Posting to The Board...</span>
-              </div>
-            )}
-
-            {/* Post error */}
-            {postError && !posting && (
-              <div className="bg-red-900/30 border border-red-800/50 text-red-300 text-sm px-4 py-3 rounded-xl">
-                {postError}
               </div>
             )}
 
@@ -496,29 +477,49 @@ export default function ProposePage() {
             </div>
           )}
 
-          {/* Chat Input */}
-          <div className={`px-5 py-3 ${quickReplies.length === 0 ? 'border-t border-dark-700' : ''} bg-dark-900/40 flex-shrink-0`}>
-            <div className="flex gap-3">
-              <input
-                ref={chatInputRef}
-                type="text"
-                value={chatInput}
-                onChange={e => setChatInput(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleChatSend() } }}
-                placeholder="e.g. Saturday morning near West Palm, need a 4th..."
-                disabled={chatLoading || posting}
-                className="flex-1 bg-dark-700 border border-dark-600 text-gray-100 placeholder-gray-500 rounded-xl px-5 py-3.5 text-base focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none disabled:opacity-50"
-              />
+          {/* Bottom bar: Post button when ready, otherwise chat input */}
+          {readyData && !posting ? (
+            <div className="px-5 py-3 border-t border-emerald-800/40 bg-dark-900/80 flex-shrink-0">
+              {postError && (
+                <p className="text-red-400 text-xs mb-2 text-center">{postError}</p>
+              )}
               <button
-                type="button"
-                onClick={handleChatSend}
-                disabled={!chatInput.trim() || chatLoading || posting}
-                className="px-4 py-3.5 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                onClick={handlePostToTeetimes}
+                className="w-full inline-flex items-center justify-center gap-2 bg-emerald-600 text-white px-4 py-3.5 rounded-xl font-bold text-base hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-900/30"
               >
-                <Send className="w-5 h-5" />
+                <Calendar className="w-5 h-5" />
+                Post to The Board
               </button>
             </div>
-          </div>
+          ) : posting ? (
+            <div className="px-5 py-4 border-t border-emerald-800/40 bg-dark-900/80 flex-shrink-0 flex items-center justify-center gap-3">
+              <div className="w-5 h-5 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin" />
+              <span className="text-sm text-emerald-400 font-semibold">Posting to The Board...</span>
+            </div>
+          ) : (
+            <div className={`px-5 py-3 ${quickReplies.length === 0 ? 'border-t border-dark-700' : ''} bg-dark-900/40 flex-shrink-0`}>
+              <div className="flex gap-3">
+                <input
+                  ref={chatInputRef}
+                  type="text"
+                  value={chatInput}
+                  onChange={e => setChatInput(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleChatSend() } }}
+                  placeholder="e.g. Saturday morning near West Palm, need a 4th..."
+                  disabled={chatLoading}
+                  className="flex-1 bg-dark-700 border border-dark-600 text-gray-100 placeholder-gray-500 rounded-xl px-5 py-3.5 text-base focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none disabled:opacity-50"
+                />
+                <button
+                  type="button"
+                  onClick={handleChatSend}
+                  disabled={!chatInput.trim() || chatLoading}
+                  className="px-4 py-3.5 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                >
+                  <Send className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
       </div>
