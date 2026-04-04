@@ -225,14 +225,22 @@ export default function FeedPage() {
         return
       }
 
-      // Upload image if present
+      // Upload image via server-side proxy (client-side Supabase storage hangs)
       let imageUrls: string[] = []
       if (imageFile) {
         const fileName = `${userId}/${Date.now()}-${imageFile.name}`
-        const { error: uploadError } = await supabase.storage.from('posts').upload(fileName, imageFile)
-        if (!uploadError) {
-          const { data: urlData } = supabase.storage.from('posts').getPublicUrl(fileName)
-          imageUrls = [urlData.publicUrl]
+        try {
+          const formData = new FormData()
+          formData.append('file', imageFile)
+          formData.append('bucket', 'posts')
+          formData.append('path', fileName)
+          const uploadRes = await fetch('/api/upload', { method: 'POST', body: formData })
+          if (uploadRes.ok) {
+            const { publicUrl } = await uploadRes.json()
+            if (publicUrl) imageUrls = [publicUrl]
+          }
+        } catch {
+          // Image upload failed silently - still create the post without image
         }
       }
 

@@ -274,14 +274,14 @@ export default function ProfilePage() {
 
       const filePath = `${profile.id}/${Date.now()}.${fileExt}`;
 
-      const { error: uploadError } = await supabase.storage
-        .from('avatars')
-        .upload(filePath, uploadFile, { upsert: true });
+      const formData = new FormData();
+      formData.append('file', uploadFile instanceof Blob ? new File([uploadFile], `avatar.${fileExt}`, { type: `image/${fileExt}` }) : uploadFile);
+      formData.append('bucket', 'avatars');
+      formData.append('path', filePath);
+      const uploadRes = await fetch('/api/upload', { method: 'POST', body: formData });
 
-      if (!uploadError) {
-        const {
-          data: { publicUrl },
-        } = supabase.storage.from('avatars').getPublicUrl(filePath);
+      if (uploadRes.ok) {
+        const { publicUrl } = await uploadRes.json();
 
         try {
           await db.update('profiles', { avatar_url: publicUrl }, { id: profile.id });
