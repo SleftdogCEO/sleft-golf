@@ -47,6 +47,7 @@ export default function FeedPage() {
   const [score, setScore] = useState('')
   const [vibe, setVibe] = useState<string | null>(null)
   const [caption, setCaption] = useState('')
+  const [highlights, setHighlights] = useState('')
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
@@ -191,6 +192,7 @@ export default function FeedPage() {
     setScore('')
     setVibe(null)
     setCaption('')
+    setHighlights('')
     clearImage()
     setPostError(null)
   }
@@ -234,11 +236,17 @@ export default function FeedPage() {
         }
       }
 
+      // Save highlights to round notes if provided
+      if (highlights.trim()) {
+        await db.update('rounds', { notes: highlights.trim() }, { id: round.id })
+      }
+
       // Build caption
       const vibeObj = vibe ? VIBES.find(v => v.emoji === vibe) : null
       const parts: string[] = []
       if (vibeObj) parts.push(`${vibeObj.emoji} ${vibeObj.label}`)
       if (caption.trim()) parts.push(caption.trim())
+      if (highlights.trim()) parts.push(`Highlights: ${highlights.trim()}`)
       const content = parts.join('\n') || null
 
       // Create post
@@ -414,6 +422,16 @@ export default function FeedPage() {
                 onChange={e => setCaption(e.target.value)}
                 placeholder="Add a caption... (optional)"
                 maxLength={280}
+                className="w-full px-4 py-2.5 bg-dark-700 border border-dark-600 rounded-xl text-gray-100 placeholder-gray-500 focus:ring-2 focus:ring-emerald-500 text-sm"
+              />
+
+              {/* Highlights (optional) */}
+              <input
+                type="text"
+                value={highlights}
+                onChange={e => setHighlights(e.target.value)}
+                placeholder="Any highlights? e.g. birdie on 7, eagle on 14 (optional)"
+                maxLength={200}
                 className="w-full px-4 py-2.5 bg-dark-700 border border-dark-600 rounded-xl text-gray-100 placeholder-gray-500 focus:ring-2 focus:ring-emerald-500 text-sm"
               />
 

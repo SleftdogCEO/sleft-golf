@@ -1,9 +1,10 @@
 'use client'
 
-import { useRef, useState, useCallback } from 'react'
+import { useRef, useState, useCallback, useEffect } from 'react'
 import { MapPin, Share2, Download } from 'lucide-react'
 import type { Post } from '@/lib/types'
 import { hapticMedium, hapticSuccess } from '@/lib/haptics'
+import type { Milestone } from '@/lib/golf-milestones'
 
 interface RoundRecapCardProps {
   post: Post
@@ -13,6 +14,31 @@ interface RoundRecapCardProps {
 export function RoundRecapCard({ post, onClose }: RoundRecapCardProps) {
   const cardRef = useRef<HTMLDivElement>(null)
   const [sharing, setSharing] = useState(false)
+  const [milestones, setMilestones] = useState<Milestone[]>([])
+
+  // Fetch milestones when card opens
+  useEffect(() => {
+    const round = post.rounds
+    const course = round?.courses
+    if (!round?.score || !post.user_id) return
+
+    fetch('/api/milestones', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        user_id: post.user_id,
+        score: round.score,
+        course_id: round.course_id,
+        course_name: course?.parent_club
+          ? `${course.parent_club} - ${course.name}`
+          : course?.name || 'the course',
+        course_par: course?.par || 72,
+      }),
+    })
+      .then(r => r.json())
+      .then(data => setMilestones(data.milestones || []))
+      .catch(() => {})
+  }, [post])
 
   const round = post.rounds
   const course = round?.courses
@@ -144,6 +170,24 @@ export function RoundRecapCard({ post, onClose }: RoundRecapCardProps) {
                 </span>
               )}
             </div>
+
+            {/* Milestones / Achievements */}
+            {milestones.length > 0 && (
+              <div className="mb-4 space-y-2">
+                {milestones.slice(0, 2).map((m, i) => (
+                  <div
+                    key={i}
+                    className="flex items-center gap-2.5 bg-gradient-to-r from-emerald-900/40 to-dark-800/40 rounded-xl px-4 py-2.5 border border-emerald-700/30"
+                  >
+                    <span className="text-xl">{m.emoji}</span>
+                    <div className="min-w-0">
+                      <p className="text-emerald-400 font-bold text-sm">{m.headline}</p>
+                      <p className="text-gray-400 text-xs">{m.detail}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
 
             {/* Course card */}
             <div className="bg-dark-800/60 rounded-xl p-4 mb-4">
