@@ -92,13 +92,19 @@ Respond with ONLY valid JSON:
 CONVERSATION FLOW — this is critical. You need FOUR things before generating a final proposal: WHEN, WHAT TIME, WHERE, and HOW MANY.
 1. If the user gives VAGUE availability (e.g. "this weekend", "Saturday", "any day except Wednesday") WITHOUT a specific time, DO NOT generate times yet. Instead, ask what time works. Example: "Saturday works! What time are you thinking — morning, afternoon, or a specific tee time?"
 2. If you have the day and time but NO location/area/course yet, ask where they want to play BEFORE generating times. Example: "Afternoon next week, got it! Where are you looking to play — any particular area or course?"
-3. Once you have day, time, AND course — you MUST ask how many are playing BEFORE generating the final proposal. Do NOT skip this step. Do NOT default to 1 player. Example: "Ibis Heritage, Saturday morning — solid pick! How many players total, including you?"
-4. CRITICAL: NEVER set confirmed to any value or generate times until the user has EXPLICITLY told you how many players. If you have day+time+course but NOT player count, set times=[], confirmed=null, and ASK about players. This is mandatory — no exceptions.
+3. Once you have day, time, AND course — include the course in the courses array AND include the time in the times array. Then ask how many are playing. Example: with courses and times populated, confirmed=null, ask: "How many players total, including you?"
+4. Keep confirmed=null until the user EXPLICITLY tells you how many players. Do NOT default to 1 player. Do NOT skip asking about player count.
 5. If the user gives a SPECIFIC day AND time (e.g. "Saturday at 10am", "Sunday morning") but no location, ask where.
 6. If the user gives MULTIPLE specific day+time combos (e.g. "Saturday 9am or Sunday 2pm"), still ask where if no location given.
 7. If the user says "morning" with a day, use T08:00. "Afternoon" = T14:00. "Evening" = T17:00.
 8. If the user says a day + "anytime" or "flexible", generate both a morning (T08:00) and afternoon (T14:00) option for that day.
 9. If the user gives everything at once (day, time, location/course, AND player count), set it all up in one response — no extra questions needed.
+
+PROGRESSIVE DATA — the frontend accumulates data across messages. You MUST include data as soon as you have it:
+- Include the course in "courses" as soon as the user picks one. Keep including it in EVERY subsequent response.
+- Include times in "times" as soon as you know the day + time of day + course. Keep including them in EVERY subsequent response.
+- Only "confirmed" should remain null until player count is given.
+- CRITICAL FOR FINAL RESPONSE: When the user gives the player count and you have all 4 pieces, you MUST populate ALL JSON fields: times (with dateTime and label), courses (with id and name), confirmed (number), open_spots (number), and title (descriptive string like "Round at [Course Name]"). An "All set!" message with empty arrays BREAKS THE UI — the Post button will not appear. This is the most important rule.
 
 Rules for PLAYERS:
 - "confirmed" = number of confirmed players INCLUDING the person posting. Set to null until the user tells you.
@@ -134,13 +140,14 @@ Rules for COURSES:
 General:
 - Be fun and brief in the message (golf-themed, 1-3 sentences)
 - Ask ONE follow-up question at a time — don't overwhelm with multiple questions
-- When you have day, time, course, AND player count nailed down, give a confident summary like "All set! 3 players, Saturday at 10am at Ibis - Tradition. Hit Post!" NEVER give this summary without the player count — if you don't have it yet, ASK.
+- When you have day, time, course, AND player count nailed down, give a confident summary like "All set! 3 players, Saturday at 10am at Ibis - Tradition. Hit Post!" AND you MUST populate times, courses, confirmed, open_spots, and title in the JSON. Never give this summary with empty arrays.
 - NEVER generate times without also having a course/location. If you have times but no location, set times=[] and ask where.
-- NEVER set confirmed to a non-null value without also having times and courses ready. If you know the player count but not the rest, keep confirmed=null and keep asking.
+- NEVER set confirmed to a non-null value without also having times and courses ready.
 - If the user mentions needing extra players (e.g. "need a 3rd", "need a 4th", "looking for players"), acknowledge it — the app will let them set group size when posting.
 - IMPORTANT: Do NOT list or enumerate courses in your message text. The UI will display course chips automatically from the courses array. Just reference them naturally (e.g. "Found some great options near West Palm!" not "Here are the courses: 1. Ibis - Tradition 2. PGA National..."). Keep your message short — the data speaks for itself.
 - IMPORTANT: Once the user has selected a specific course, ONLY include that one course in the courses array going forward. Do NOT keep showing all the options after they've picked one.
-- The UI shows quick-reply buttons for time of day (Morning, Afternoon, Evening, Anytime) when you ask about time. So keep your time question simple and natural.`
+- The UI shows quick-reply buttons for time of day (Morning, Afternoon, Evening, Anytime) when you ask about time. So keep your time question simple and natural.
+- REMEMBER: The structured JSON data (times, courses, confirmed) is what drives the UI, not your message text. If your message says "All set" but the arrays are empty, the user sees NO Post button. Always match your JSON data to what your message describes.`
 }
 
 export async function POST(req: NextRequest) {
@@ -231,12 +238,83 @@ export async function POST(req: NextRequest) {
         })
     }
 
+    let confirmed: number | null = typeof parsed.confirmed === 'number' ? parsed.confirmed : null
+
+    // Safety net: if AI gave a final-sounding message but forgot structured data,
+    // recover courses/times/confirmed from conversation context
+    const isFinalMsg = /all set|hit post|ready to post|let'?s go|you'?re all set|book it/i.test(parsed.message || '')
+    if (isFinalMsg && (times.length === 0 || suggestedCourses.length === 0 || confirmed == null)) {
+      const allConvoText = messages.map((m: { content: string }) => m.content).join(' ')
+
+      // Recover courses: match course names from conversation against DB
+      if (suggestedCourses.length === 0) {
+        for (const c of courses) {
+          const names = [c.name.toLowerCase()]
+          if (c.parent_club) names.push(c.parent_club.toLowerCase())
+          if (names.some(n => allConvoText.toLowerCase().includes(n))) {
+            suggestedCourses = [{
+              id: c.id,
+              name: c.parent_club ? `${c.parent_club} - ${c.name}` : c.name,
+              price_tier: c.price_tier ?? null,
+              green_fee_estimate: c.green_fee_estimate ?? null,
+              is_private: c.is_private,
+            }]
+            break
+          }
+        }
+      }
+
+      // Recover confirmed: pattern match player count from conversation
+      if (confirmed == null) {
+        const lower = allConvoText.toLowerCase()
+        if (/\bjust me\b|\bsolo\b|\bjust myself\b|\b1 player\b/.test(lower)) confirmed = 1
+        else if (/\b2 of us\b|\btwo of us\b|\bme and (a |my )?(buddy|friend|partner)\b|\b2 players\b/.test(lower)) confirmed = 2
+        else if (/\b3 of us\b|\bthree of us\b|\b3 players\b|\bneed a 4th\b/.test(lower)) confirmed = 3
+        else if (/\bfull foursome\b|\b4 of us\b|\bfour of us\b|\b4 players\b/.test(lower)) confirmed = 4
+      }
+
+      // Recover times: extract day + time-of-day from conversation
+      if (times.length === 0) {
+        let hour = 8 // default morning
+        const lower = allConvoText.toLowerCase()
+        if (/\bafternoon\b/.test(lower)) hour = 14
+        else if (/\bevening\b/.test(lower)) hour = 17
+
+        const dateRef = buildDateReference(tz)
+        for (const line of dateRef.split('\n')) {
+          const dayMatch = line.match(/^(\w+),\s*(\w+)\s+(\d+)/)
+          const dateTimeMatch = line.match(/dateTime:\s*"(\d{4}-\d{2}-\d{2})"/)
+          if (!dayMatch || !dateTimeMatch) continue
+
+          const dayName = dayMatch[1].toLowerCase()
+          const isToday = line.includes('TODAY')
+          const isTomorrow = line.includes('tomorrow')
+
+          if (
+            (isToday && lower.includes('today')) ||
+            (isTomorrow && lower.includes('tomorrow')) ||
+            lower.includes(dayName) ||
+            lower.includes(dayName.slice(0, 3))
+          ) {
+            const hh = String(hour).padStart(2, '0')
+            const ampm = hour >= 12 ? 'PM' : 'AM'
+            const displayHour = hour > 12 ? hour - 12 : hour
+            times = [{
+              dateTime: `${dateTimeMatch[1]}T${hh}:00`,
+              label: `${dayMatch[1]}, ${dayMatch[2]} ${dayMatch[3]} at ${displayHour}:00 ${ampm}`,
+            }]
+            break
+          }
+        }
+      }
+    }
+
     return NextResponse.json({
       message: parsed.message || "I'm having trouble understanding. Can you rephrase?",
       times,
       courses: suggestedCourses,
       title: parsed.title || null,
-      confirmed: typeof parsed.confirmed === 'number' ? parsed.confirmed : null,
+      confirmed,
       open_spots: typeof parsed.open_spots === 'number' ? parsed.open_spots : 0,
     })
   } catch (error: any) {
