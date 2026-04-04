@@ -84,12 +84,10 @@ export default function CalendarPage() {
   useEffect(() => {
     if (courseSearch.length >= 2) {
       const timeout = setTimeout(() => {
-        supabase
-          .from('courses')
-          .select('*')
-          .or(`name.ilike.%${courseSearch}%,parent_club.ilike.%${courseSearch}%,city.ilike.%${courseSearch}%`)
-          .limit(6)
-          .then(({ data }) => { if (data) setCourses(data as Course[]) })
+        fetch(`/api/courses/search?q=${encodeURIComponent(courseSearch)}`)
+          .then(r => r.json())
+          .then(data => { if (data) setCourses(data as Course[]) })
+          .catch(() => {})
       }, 200)
       return () => clearTimeout(timeout)
     } else {
