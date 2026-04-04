@@ -58,6 +58,7 @@ export default function ProposePage() {
   } | null>(null)
   const [posting, setPosting] = useState(false)
   const [wantMore, setWantMore] = useState<boolean | null>(null)
+  const [extraSpots, setExtraSpots] = useState(1)
   const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null)
   const [selectedTimeIdx, setSelectedTimeIdx] = useState(0)
   const [postError, setPostError] = useState<string | null>(null)
@@ -246,7 +247,7 @@ export default function ProposePage() {
           title,
           course_id: course.id && course.id.length > 10 ? course.id : null,
           tee_time: new Date(teeTime.dateTime).toISOString(),
-          max_players: readyData.confirmed + (wantMore ? Math.max(readyData.openSpots, 1) : readyData.openSpots),
+          max_players: readyData.confirmed + (wantMore ? (readyData.openSpots > 0 ? readyData.openSpots : extraSpots) : readyData.openSpots),
           confirmed_count: readyData.confirmed,
           description: [
             readyData.times.length > 1 ? `Flexible times: ${readyData.times.map(t => t.label).join(', ')}` : null,
@@ -433,8 +434,11 @@ export default function ProposePage() {
                     <Users className="w-3.5 h-3.5 text-gray-400" />
                     <span className="text-sm text-gray-300">
                       {readyData.confirmed} confirmed{readyData.confirmed === 1 ? ' (just you)' : ` (you + ${readyData.confirmed - 1})`}
-                      {(readyData.openSpots > 0 || wantMore) && (
-                        <span className="text-emerald-400"> · {Math.max(readyData.openSpots, 1)} open spot{Math.max(readyData.openSpots, 1) !== 1 ? 's' : ''}</span>
+                      {readyData.openSpots > 0 && (
+                        <span className="text-emerald-400"> · {readyData.openSpots} open spot{readyData.openSpots !== 1 ? 's' : ''}</span>
+                      )}
+                      {wantMore && readyData.openSpots === 0 && (
+                        <span className="text-emerald-400"> · {extraSpots} open spot{extraSpots !== 1 ? 's' : ''}</span>
                       )}
                     </span>
                   </div>
@@ -449,6 +453,23 @@ export default function ProposePage() {
                         className="px-3 py-1 rounded-lg text-xs font-medium bg-dark-700 text-gray-400 border border-dark-600 hover:text-white transition-colors">
                         No, we&apos;re set
                       </button>
+                    </div>
+                  )}
+                  {wantMore && readyData.openSpots === 0 && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-gray-400">How many spots to open?</span>
+                      <div className="flex gap-1.5">
+                        {[1, 2, 3].map(n => (
+                          <button key={n} type="button" onClick={() => setExtraSpots(n)}
+                            className={`w-8 h-8 rounded-lg text-xs font-semibold transition-colors ${
+                              extraSpots === n
+                                ? 'bg-emerald-600 text-white'
+                                : 'bg-dark-700 text-gray-400 border border-dark-600 hover:text-white'
+                            }`}>
+                            {n}
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   )}
                 </div>
