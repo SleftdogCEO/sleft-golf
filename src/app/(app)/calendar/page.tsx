@@ -12,7 +12,6 @@ import {
   Plus,
   UserPlus,
   UserMinus,
-  MessageCircle,
   ChevronLeft,
   ChevronRight,
   X,
@@ -20,6 +19,8 @@ import {
   Send,
   Pencil,
   Trash2,
+  Bell,
+  Check,
 } from 'lucide-react'
 import {
   format,
@@ -66,6 +67,69 @@ export default function CalendarPage() {
   const [editTime, setEditTime] = useState('')
   const [editMax, setEditMax] = useState(4)
   const [saving, setSaving] = useState(false)
+
+  // Invite system
+  const [inviteModalMeetup, setInviteModalMeetup] = useState<string | null>(null)
+  const [inviteSearch, setInviteSearch] = useState('')
+  const [inviteResults, setInviteResults] = useState<Profile[]>([])
+  const [inviteSending, setInviteSending] = useState<string | null>(null)
+  const [inviteSent, setInviteSent] = useState<Set<string>>(new Set())
+  const [pendingInvites, setPendingInvites] = useState<any[]>([])
+  const [respondingInvite, setRespondingInvite] = useState<string | null>(null)
+
+  // Fetch pending invites for this user
+  useEffect(() => {
+    if (!userId) return
+    fetch(`/api/invites?user_id=${userId}`)
+      .then(r => r.json())
+      .then(data => { if (Array.isArray(data)) setPendingInvites(data) })
+      .catch(() => {})
+  }, [userId])
+
+  // Player search for invites
+  useEffect(() => {
+    if (inviteSearch.length < 2) { setInviteResults([]); return }
+    const timeout = setTimeout(() => {
+      const excludeIds = [userId].filter(Boolean).join(',')
+      fetch(`/api/players/search?q=${encodeURIComponent(inviteSearch)}&exclude=${excludeIds}`)
+        .then(r => r.json())
+        .then(data => { if (Array.isArray(data)) setInviteResults(data) })
+        .catch(() => {})
+    }, 200)
+    return () => clearTimeout(timeout)
+  }, [inviteSearch, userId])
+
+  async function sendInvite(meetupId: string, inviteeId: string) {
+    if (!userId || inviteSending) return
+    setInviteSending(inviteeId)
+    try {
+      const res = await fetch('/api/invites', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ meetup_id: meetupId, inviter_id: userId, invitee_id: inviteeId }),
+      })
+      if (res.ok) {
+        hapticSuccess()
+        setInviteSent(prev => new Set(prev).add(inviteeId))
+      }
+    } catch {}
+    setInviteSending(null)
+  }
+
+  async function respondToInvite(inviteId: string, status: 'accepted' | 'declined', inviteeId: string, meetupId: string) {
+    setRespondingInvite(inviteId)
+    try {
+      await fetch('/api/invites', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: inviteId, status, invitee_id: inviteeId, meetup_id: meetupId }),
+      })
+      hapticSuccess()
+      setPendingInvites(prev => prev.filter(i => i.id !== inviteId))
+      if (status === 'accepted') fetchMeetups()
+    } catch {}
+    setRespondingInvite(null)
+  }
 
   // Generate 14 days from offset
   const dates = useMemo(() => {
@@ -289,6 +353,49 @@ export default function CalendarPage() {
           </Link>
         </div>
 
+        {/* Pending invites banner */}
+        {pendingInvites.length > 0 && (
+          <div className="mb-5 space-y-2">
+            {pendingInvites.map(invite => (
+              <div key={invite.id} className="bg-emerald-900/20 border border-emerald-800/40 rounded-2xl p-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-emerald-600/20 flex items-center justify-center flex-shrink-0 overflow-hidden">
+                    {invite.inviter?.avatar_url ? (
+                      <img src={invite.inviter.avatar_url} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                      <Bell className="w-5 h-5 text-emerald-400" />
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-white font-medium">
+                      <span className="text-emerald-400">{invite.inviter?.full_name?.split(' ')[0] || 'Someone'}</span> invited you to play
+                    </p>
+                    <p className="text-xs text-gray-400 truncate">
+                      {invite.meetups?.title} {invite.meetups?.tee_time ? '· ' + format(parseISO(invite.meetups.tee_time), 'EEE, MMM d · h:mm a') : ''}
+                    </p>
+                  </div>
+                  <div className="flex gap-2 flex-shrink-0">
+                    <button
+                      onClick={() => respondToInvite(invite.id, 'accepted', invite.invitee_id, invite.meetup_id)}
+                      disabled={respondingInvite === invite.id}
+                      className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600 text-white hover:bg-emerald-500 disabled:opacity-50 transition-colors"
+                    >
+                      Join
+                    </button>
+                    <button
+                      onClick={() => respondToInvite(invite.id, 'declined', invite.invitee_id, invite.meetup_id)}
+                      disabled={respondingInvite === invite.id}
+                      className="px-3 py-1.5 rounded-lg text-xs font-medium bg-dark-700 text-gray-400 border border-dark-600 hover:text-white disabled:opacity-50 transition-colors"
+                    >
+                      Pass
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
         {/* Date Strip */}
         <div className="mb-5">
           <div className="flex items-center gap-2">
@@ -398,10 +505,9 @@ export default function CalendarPage() {
               const isOrganizer = userId === meetup.organizer_id
 
               return (
-                <Link
+                <div
                   key={meetup.id}
-                  href={`/tee-times/${meetup.id}`}
-                  className={`block bg-dark-800 rounded-2xl border overflow-hidden transition-colors active:bg-dark-700 ${
+                  className={`bg-dark-800 rounded-2xl border overflow-hidden transition-colors ${
                     isIn ? 'border-emerald-700/50' : isOpen ? 'border-dark-600' : 'border-dark-700 opacity-60'
                   }`}
                 >
@@ -442,25 +548,25 @@ export default function CalendarPage() {
                         </div>
                       </div>
 
-                      <div className="flex-shrink-0 flex items-center gap-1.5" onClick={e => e.preventDefault()}>
+                      <div className="flex-shrink-0 flex items-center gap-1.5">
                         {isOrganizer && (
                           <>
-                            <button onClick={(e) => { e.preventDefault(); openEdit(meetup) }} className="p-1.5 rounded-lg text-gray-500 hover:text-white hover:bg-dark-600 transition-colors" title="Edit">
+                            <button onClick={() => openEdit(meetup)} className="p-1.5 rounded-lg text-gray-500 hover:text-white hover:bg-dark-600 transition-colors" title="Edit">
                               <Pencil className="w-3.5 h-3.5" />
                             </button>
-                            <button onClick={(e) => { e.preventDefault(); setDeleteId(meetup.id) }} className="p-1.5 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-900/20 transition-colors" title="Delete">
+                            <button onClick={() => setDeleteId(meetup.id)} className="p-1.5 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-900/20 transition-colors" title="Delete">
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
                           </>
                         )}
                         {userId && !isOrganizer && isIn && (
-                          <button onClick={(e) => { e.preventDefault(); leaveMeetup(meetup.id) }} disabled={joining === meetup.id}
+                          <button onClick={() => leaveMeetup(meetup.id)} disabled={joining === meetup.id}
                             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-red-400 bg-red-900/20 border border-red-800/30 hover:bg-red-900/30 transition-colors disabled:opacity-50">
                             <UserMinus className="w-3.5 h-3.5" /> Leave
                           </button>
                         )}
                         {!isIn && isOpen && (
-                          <button onClick={(e) => { e.preventDefault(); joinMeetup(meetup.id) }} disabled={joining === meetup.id}
+                          <button onClick={() => joinMeetup(meetup.id)} disabled={joining === meetup.id}
                             className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 transition-colors disabled:opacity-50">
                             <UserPlus className="w-3.5 h-3.5" /> Join
                           </button>
@@ -508,17 +614,83 @@ export default function CalendarPage() {
                           </p>
                         )}
                       </div>
-                      <div className="p-2 rounded-lg text-gray-500" title="Match Room">
-                        <MessageCircle className="w-5 h-5" />
-                      </div>
                     </div>
+
+                    {/* Invite button for organizer with open spots */}
+                    {isOrganizer && isOpen && (
+                      <button
+                        onClick={() => { setInviteModalMeetup(meetup.id); setInviteSearch(''); setInviteResults([]); setInviteSent(new Set()); hapticLight() }}
+                        className="mt-3 w-full inline-flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-semibold text-emerald-400 bg-emerald-900/20 border border-emerald-800/30 hover:bg-emerald-900/30 transition-colors"
+                      >
+                        <Send className="w-3.5 h-3.5" />
+                        Invite Players
+                      </button>
+                    )}
                   </div>
-                </Link>
+                </div>
               )
             })}
           </div>
         )}
       </div>
+
+      {/* Invite Player Modal */}
+      {inviteModalMeetup && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm p-4" onClick={() => setInviteModalMeetup(null)}>
+          <div className="bg-dark-800 rounded-2xl border border-dark-700 p-5 max-w-sm w-full max-h-[70vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-white font-semibold text-lg">Invite Players</h3>
+              <button onClick={() => setInviteModalMeetup(null)} className="p-1 text-gray-500 hover:text-white transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <input
+              type="text"
+              value={inviteSearch}
+              onChange={e => setInviteSearch(e.target.value)}
+              placeholder="Search by name..."
+              autoFocus
+              className="w-full bg-dark-700 border border-dark-600 rounded-xl px-4 py-2.5 text-gray-100 text-sm focus:ring-2 focus:ring-emerald-500 outline-none placeholder-gray-500 mb-3"
+            />
+            <div className="flex-1 overflow-y-auto space-y-1 min-h-0">
+              {inviteResults.length === 0 && inviteSearch.length >= 2 && (
+                <p className="text-xs text-gray-500 text-center py-4">No players found</p>
+              )}
+              {inviteResults.map(player => {
+                const alreadySent = inviteSent.has(player.id)
+                return (
+                  <div key={player.id} className="flex items-center gap-3 p-2 rounded-xl hover:bg-dark-700 transition-colors">
+                    <div className="w-9 h-9 rounded-full bg-dark-600 flex items-center justify-center overflow-hidden flex-shrink-0">
+                      {player.avatar_url ? (
+                        <img src={player.avatar_url} alt="" className="w-full h-full object-cover" />
+                      ) : (
+                        <span className="text-gray-300 text-xs font-bold">{player.full_name?.charAt(0)?.toUpperCase() || '?'}</span>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-white font-medium truncate">{player.full_name}</p>
+                      {player.handicap != null && <p className="text-[10px] text-gray-500">HCP {player.handicap}</p>}
+                    </div>
+                    {alreadySent ? (
+                      <span className="inline-flex items-center gap-1 text-xs text-emerald-400 font-medium">
+                        <Check className="w-3.5 h-3.5" /> Sent
+                      </span>
+                    ) : (
+                      <button
+                        onClick={() => sendInvite(inviteModalMeetup, player.id)}
+                        disabled={inviteSending === player.id}
+                        className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600 text-white hover:bg-emerald-500 disabled:opacity-50 transition-colors"
+                      >
+                        {inviteSending === player.id ? '...' : 'Invite'}
+                      </button>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Delete Confirmation */}
       {deleteId && (
