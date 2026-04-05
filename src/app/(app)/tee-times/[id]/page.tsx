@@ -29,7 +29,8 @@ import { db } from '@/lib/db'
 export default function MatchRoomPage() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
-  const supabase = createClient()
+  const supabaseRef = useRef(createClient())
+  const supabase = supabaseRef.current
   const chatEndRef = useRef<HTMLDivElement>(null)
   const chatContainerRef = useRef<HTMLDivElement>(null)
   const { userId, profile } = useUser()
@@ -51,19 +52,25 @@ export default function MatchRoomPage() {
 
   // Fetch meetup
   const fetchMeetup = useCallback(async () => {
-    const { data, error } = await supabase
-      .from('meetups')
-      .select('*, profiles(*), courses(*), meetup_attendees(*, profiles(*))')
-      .eq('id', id)
-      .single()
+    try {
+      const { data, error } = await supabase
+        .from('meetups')
+        .select('*, profiles(*), courses(*), meetup_attendees(*, profiles(*))')
+        .eq('id', id)
+        .single()
 
-    if (error || !data) {
-      console.error('Error fetching meetup:', error)
-      return
+      if (error || !data) {
+        console.error('Error fetching meetup:', error)
+        setLoading(false)
+        return
+      }
+      setMeetup(data)
+    } catch (err) {
+      console.error('Meetup fetch failed:', err)
+    } finally {
+      setLoading(false)
     }
-    setMeetup(data)
-    setLoading(false)
-  }, [supabase, id])
+  }, [id])
 
   // Fetch messages
   const fetchMessages = useCallback(async () => {
@@ -74,7 +81,7 @@ export default function MatchRoomPage() {
       .order('created_at', { ascending: true })
 
     if (data) setMessages(data)
-  }, [supabase, id])
+  }, [id])
 
   useEffect(() => {
     fetchMeetup()
