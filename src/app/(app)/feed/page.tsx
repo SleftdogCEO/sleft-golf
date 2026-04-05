@@ -172,9 +172,13 @@ export default function FeedPage() {
   async function handleNativeImageSelect() {
     hapticLight()
     const photo = await takePhoto()
-    if (!photo) return
-    setImagePreview(photo.dataUrl)
-    setImageFile(new File([photo.blob], `photo_${Date.now()}.jpg`, { type: 'image/jpeg' }))
+    if (photo) {
+      setImagePreview(photo.dataUrl)
+      setImageFile(new File([photo.blob], `photo_${Date.now()}.jpg`, { type: 'image/jpeg' }))
+      return
+    }
+    // Native camera failed or unavailable (e.g. simulator) — fall back to file input
+    fileInputRef.current?.click()
   }
 
   function clearImage() {
@@ -459,18 +463,11 @@ export default function FeedPage() {
 
               {/* Actions */}
               <div className="flex items-center justify-between pt-1">
-                {useNativeCamera ? (
-                  <button onClick={handleNativeImageSelect} className="inline-flex items-center gap-2 text-gray-400 hover:text-emerald-400 transition-colors px-3 py-1.5 rounded-lg hover:bg-emerald-900/20">
-                    <Camera className="w-5 h-5" />
-                    <span className="text-sm font-medium">Photo</span>
-                  </button>
-                ) : (
-                  <label className="inline-flex items-center gap-2 text-gray-400 hover:text-emerald-400 cursor-pointer transition-colors px-3 py-1.5 rounded-lg hover:bg-emerald-900/20">
-                    <ImageIcon className="w-5 h-5" />
-                    <span className="text-sm font-medium">Photo</span>
-                    <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageSelect} className="hidden" />
-                  </label>
-                )}
+                <button onClick={useNativeCamera ? handleNativeImageSelect : () => fileInputRef.current?.click()} className="inline-flex items-center gap-2 text-gray-400 hover:text-emerald-400 transition-colors px-3 py-1.5 rounded-lg hover:bg-emerald-900/20">
+                  <Camera className="w-5 h-5" />
+                  <span className="text-sm font-medium">Photo</span>
+                </button>
+                <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageSelect} className="hidden" />
                 <button
                   onClick={handleSubmitRound}
                   disabled={!selectedCourse || !score || submitting}
