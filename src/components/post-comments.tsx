@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
-import { createClient } from '@/lib/supabase/client'
 import type { Comment } from '@/lib/types'
 import { Send } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
@@ -15,8 +14,6 @@ interface PostCommentsProps {
 }
 
 export function PostComments({ postId, userId, onCountChange }: PostCommentsProps) {
-  const supabaseRef = useRef(createClient())
-  const supabase = supabaseRef.current
   const inputRef = useRef<HTMLInputElement>(null)
 
   const [comments, setComments] = useState<Comment[]>([])
@@ -29,19 +26,20 @@ export function PostComments({ postId, userId, onCountChange }: PostCommentsProp
   }, [postId])
 
   useEffect(() => {
-    // Auto-focus the input when the component mounts
     inputRef.current?.focus()
   }, [])
 
   async function fetchComments() {
     setLoading(true)
-    const { data } = await supabase
-      .from('comments')
-      .select('*, profiles(*)')
-      .eq('post_id', postId)
-      .order('created_at', { ascending: true })
-
-    if (data) setComments(data as Comment[])
+    try {
+      const res = await fetch(`/api/comments?post_id=${encodeURIComponent(postId)}`)
+      if (res.ok) {
+        const data = await res.json()
+        setComments(data || [])
+      }
+    } catch (err) {
+      console.error('Error fetching comments:', err)
+    }
     setLoading(false)
   }
 
