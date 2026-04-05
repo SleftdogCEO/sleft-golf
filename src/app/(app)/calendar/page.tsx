@@ -398,9 +398,10 @@ export default function CalendarPage() {
               const isOrganizer = userId === meetup.organizer_id
 
               return (
-                <div
+                <Link
                   key={meetup.id}
-                  className={`bg-dark-800 rounded-2xl border overflow-hidden transition-colors ${
+                  href={`/tee-times/${meetup.id}`}
+                  className={`block bg-dark-800 rounded-2xl border overflow-hidden transition-colors active:bg-dark-700 ${
                     isIn ? 'border-emerald-700/50' : isOpen ? 'border-dark-600' : 'border-dark-700 opacity-60'
                   }`}
                 >
@@ -441,25 +442,25 @@ export default function CalendarPage() {
                         </div>
                       </div>
 
-                      <div className="flex-shrink-0 flex items-center gap-1.5">
+                      <div className="flex-shrink-0 flex items-center gap-1.5" onClick={e => e.preventDefault()}>
                         {isOrganizer && (
                           <>
-                            <button onClick={() => openEdit(meetup)} className="p-1.5 rounded-lg text-gray-500 hover:text-white hover:bg-dark-600 transition-colors" title="Edit">
+                            <button onClick={(e) => { e.preventDefault(); openEdit(meetup) }} className="p-1.5 rounded-lg text-gray-500 hover:text-white hover:bg-dark-600 transition-colors" title="Edit">
                               <Pencil className="w-3.5 h-3.5" />
                             </button>
-                            <button onClick={() => setDeleteId(meetup.id)} className="p-1.5 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-900/20 transition-colors" title="Delete">
+                            <button onClick={(e) => { e.preventDefault(); setDeleteId(meetup.id) }} className="p-1.5 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-900/20 transition-colors" title="Delete">
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
                           </>
                         )}
                         {userId && !isOrganizer && isIn && (
-                          <button onClick={() => leaveMeetup(meetup.id)} disabled={joining === meetup.id}
+                          <button onClick={(e) => { e.preventDefault(); leaveMeetup(meetup.id) }} disabled={joining === meetup.id}
                             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-red-400 bg-red-900/20 border border-red-800/30 hover:bg-red-900/30 transition-colors disabled:opacity-50">
                             <UserMinus className="w-3.5 h-3.5" /> Leave
                           </button>
                         )}
                         {!isIn && isOpen && (
-                          <button onClick={() => joinMeetup(meetup.id)} disabled={joining === meetup.id}
+                          <button onClick={(e) => { e.preventDefault(); joinMeetup(meetup.id) }} disabled={joining === meetup.id}
                             className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 transition-colors disabled:opacity-50">
                             <UserPlus className="w-3.5 h-3.5" /> Join
                           </button>
@@ -507,15 +508,12 @@ export default function CalendarPage() {
                           </p>
                         )}
                       </div>
-                      {isIn && (
-                        <Link href={`/tee-times/${meetup.id}`}
-                          className="p-2 rounded-lg text-gray-500 hover:text-emerald-400 hover:bg-emerald-900/20 transition-colors" title="Match Room">
-                          <MessageCircle className="w-5 h-5" />
-                        </Link>
-                      )}
+                      <div className="p-2 rounded-lg text-gray-500" title="Match Room">
+                        <MessageCircle className="w-5 h-5" />
+                      </div>
                     </div>
                   </div>
-                </div>
+                </Link>
               )
             })}
           </div>

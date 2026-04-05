@@ -130,6 +130,7 @@ export default function TeeTimesPage() {
   const [newCourseName, setNewCourseName] = useState('')
   const [newCourseClub, setNewCourseClub] = useState('')
   const [newCourseCity, setNewCourseCity] = useState('')
+  const [newCourseState, setNewCourseState] = useState('FL')
   const [addingCourse, setAddingCourse] = useState(false)
 
   useEffect(() => {
@@ -178,7 +179,7 @@ export default function TeeTimesPage() {
         name: newCourseName.trim(),
         parent_club: newCourseClub.trim() || null,
         city: newCourseCity.trim(),
-        state: 'FL',
+        state: newCourseState.trim() || 'FL',
         holes: 18,
         par: 72,
       })
@@ -659,13 +660,23 @@ export default function TeeTimesPage() {
                           placeholder="Club name (optional, e.g. Ibis Golf & CC)"
                           className="w-full bg-dark-600 border border-dark-500 text-gray-100 placeholder-gray-500 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none"
                         />
-                        <input
-                          type="text"
-                          value={newCourseCity}
-                          onChange={e => setNewCourseCity(e.target.value)}
-                          placeholder="City (e.g. West Palm Beach)"
-                          className="w-full bg-dark-600 border border-dark-500 text-gray-100 placeholder-gray-500 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none"
-                        />
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={newCourseCity}
+                            onChange={e => setNewCourseCity(e.target.value)}
+                            placeholder="City (e.g. West Palm Beach)"
+                            className="flex-1 bg-dark-600 border border-dark-500 text-gray-100 placeholder-gray-500 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none"
+                          />
+                          <input
+                            type="text"
+                            value={newCourseState}
+                            onChange={e => setNewCourseState(e.target.value.toUpperCase().slice(0, 2))}
+                            placeholder="ST"
+                            maxLength={2}
+                            className="w-16 bg-dark-600 border border-dark-500 text-gray-100 placeholder-gray-500 rounded-lg px-3 py-2 text-sm text-center uppercase focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none"
+                          />
+                        </div>
                         <div className="flex gap-2">
                           <button type="button" onClick={() => setShowAddCourse(false)} className="flex-1 px-3 py-2 rounded-lg text-sm font-medium text-gray-400 bg-dark-600 hover:bg-dark-500 transition-colors">Cancel</button>
                           <button
@@ -937,8 +948,8 @@ export default function TeeTimesPage() {
                         </span>
                       )}
 
-                      {/* Edit / Delete for organizer and attendees */}
-                      {status !== 'past' && (isOrganizer || attending) && (
+                      {/* Edit / Delete for organizer only */}
+                      {status !== 'past' && isOrganizer && (
                         <button
                           onClick={() => openEdit(meetup)}
                           className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm text-gray-400 hover:text-white hover:bg-dark-600 transition-colors"
@@ -975,7 +986,7 @@ export default function TeeTimesPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" onClick={() => !deleting && setDeleteId(null)}>
           <div className="bg-dark-800 rounded-2xl border border-dark-700 p-6 max-w-sm w-full" onClick={e => e.stopPropagation()}>
             <h3 className="text-white font-semibold text-lg mb-2">Delete Tee Time?</h3>
-            <p className="text-gray-400 text-sm mb-6">This will remove the tee time from The Board and notify all attendees. This can&apos;t be undone.</p>
+            <p className="text-gray-400 text-sm mb-6">This will remove the tee time from The Board. This can&apos;t be undone.</p>
             <div className="flex gap-3">
               <button
                 onClick={() => handleDelete(deleteId)}

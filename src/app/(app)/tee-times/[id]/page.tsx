@@ -14,7 +14,6 @@ import {
   Send,
   Copy,
   Check,
-  Mail,
   CalendarPlus,
   MessageCircle,
   Flame,
@@ -43,7 +42,6 @@ export default function MatchRoomPage() {
   const [sending, setSending] = useState(false)
   const [copied, setCopied] = useState<string | null>(null)
   const [countdown, setCountdown] = useState('')
-  const [showPlayerEmails, setShowPlayerEmails] = useState(false)
   const [joining, setJoining] = useState(false)
 
   // Set user from auth profile
@@ -549,19 +547,11 @@ export default function MatchRoomPage() {
           <div className="space-y-4">
             {/* Players card */}
             <div className="bg-dark-800 rounded-2xl border border-dark-700 overflow-hidden">
-              <div className="px-5 py-4 border-b border-dark-700 flex items-center justify-between">
+              <div className="px-5 py-4 border-b border-dark-700">
                 <h3 className="text-white font-semibold flex items-center gap-2">
                   <Users className="w-4 h-4 text-emerald-400" />
                   Players ({attendees.length}/{meetup.max_players})
                 </h3>
-                <button
-                  onClick={() => setShowPlayerEmails(!showPlayerEmails)}
-                  className="text-xs text-emerald-400 hover:text-emerald-300 font-medium flex items-center gap-1 transition-colors"
-                >
-                  <Mail className="w-3.5 h-3.5" />
-                  {showPlayerEmails ? 'Hide' : 'Emails'}
-                  <ChevronDown className={`w-3 h-3 transition-transform ${showPlayerEmails ? 'rotate-180' : ''}`} />
-                </button>
               </div>
 
               <div className="p-4 space-y-2">
@@ -590,18 +580,6 @@ export default function MatchRoomPage() {
                         )}
                       </p>
                       <p className="text-xs text-gray-500 truncate">@{attendee.profiles?.username}</p>
-                      {showPlayerEmails && (
-                        <button
-                          onClick={() => {
-                            const email = `${attendee.profiles?.username}@email.com`
-                            copyToClipboard(email, attendee.id)
-                          }}
-                          className="flex items-center gap-1 mt-1 text-xs text-emerald-400 hover:text-emerald-300 transition-colors"
-                        >
-                          <Mail className="w-3 h-3" />
-                          {copied === attendee.id ? 'Copied!' : 'Copy email'}
-                        </button>
-                      )}
                     </div>
                   </div>
                 ))}
