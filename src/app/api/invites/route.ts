@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { sendPushNotification } from '@/lib/push'
 
 // GET /api/invites?user_id=xxx — get pending invites for a user
 // GET /api/invites?meetup_id=xxx — get invites for a meetup
@@ -55,6 +56,36 @@ export async function POST(req: NextRequest) {
       .single()
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+    // Send push notification to invitee
+    try {
+      // Get inviter name and meetup details for the notification
+      const { data: inviter } = await supabase
+        .from('profiles')
+        .select('full_name')
+        .eq('id', inviter_id)
+        .single()
+
+      const { data: meetup } = await supabase
+        .from('meetups')
+        .select('title, tee_time')
+        .eq('id', meetup_id)
+        .single()
+
+      const inviterName = inviter?.full_name?.split(' ')[0] || 'Someone'
+      const roundInfo = meetup?.title || 'a round'
+
+      await sendPushNotification(
+        invitee_id,
+        `${inviterName} invited you to play`,
+        roundInfo,
+        { url: '/calendar' }
+      )
+    } catch (pushErr) {
+      // Push failure shouldn't block the invite
+      console.warn('Push notification failed:', pushErr)
+    }
+
     return NextResponse.json(data)
   } catch (err: any) {
     return NextResponse.json({ error: err?.message || 'Unexpected error' }, { status: 500 })

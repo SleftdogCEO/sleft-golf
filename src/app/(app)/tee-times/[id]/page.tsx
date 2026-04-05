@@ -50,21 +50,16 @@ export default function MatchRoomPage() {
     if (profile) setUser(profile)
   }, [profile])
 
-  // Fetch meetup
+  // Fetch meetup via server API (avoids expired-token issue on Capacitor)
   const fetchMeetup = useCallback(async () => {
     try {
-      const { data, error } = await supabase
-        .from('meetups')
-        .select('*, profiles(*), courses(*), meetup_attendees(*, profiles(*))')
-        .eq('id', id)
-        .single()
-
-      if (error || !data) {
-        console.error('Error fetching meetup:', error)
-        setLoading(false)
+      const res = await fetch(`/api/meetups/${id}`)
+      if (!res.ok) {
+        console.error('Error fetching meetup:', res.statusText)
         return
       }
-      setMeetup(data)
+      const data = await res.json()
+      if (data?.id) setMeetup(data)
     } catch (err) {
       console.error('Meetup fetch failed:', err)
     } finally {
@@ -72,15 +67,15 @@ export default function MatchRoomPage() {
     }
   }, [id])
 
-  // Fetch messages
+  // Fetch messages via server API
   const fetchMessages = useCallback(async () => {
-    const { data } = await supabase
-      .from('meetup_messages')
-      .select('*, profiles(*)')
-      .eq('meetup_id', id)
-      .order('created_at', { ascending: true })
-
-    if (data) setMessages(data)
+    try {
+      const res = await fetch(`/api/meetups/${id}/messages`)
+      if (res.ok) {
+        const data = await res.json()
+        if (Array.isArray(data)) setMessages(data)
+      }
+    } catch {}
   }, [id])
 
   useEffect(() => {
