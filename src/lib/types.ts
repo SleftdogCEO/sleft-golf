@@ -45,6 +45,7 @@ export type Round = {
   tee_time: string | null
   score: number | null
   score_details: Record<string, number> | null
+  holes_played: 9 | 18
   notes: string | null
   is_public: boolean
   created_at: string

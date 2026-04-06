@@ -32,7 +32,7 @@ export function RoundRecapCard({ post, onClose }: RoundRecapCardProps) {
         course_name: course?.parent_club
           ? `${course.parent_club} - ${course.name}`
           : course?.name || 'the course',
-        course_par: course?.par || 72,
+        course_par: course?.par ? (round.holes_played === 9 ? Math.round(course.par / 2) : course.par) : 72,
       }),
     })
       .then(r => r.json())
@@ -43,7 +43,9 @@ export function RoundRecapCard({ post, onClose }: RoundRecapCardProps) {
   const round = post.rounds
   const course = round?.courses
   const profile = post.profiles
-  const diff = round?.score != null && course?.par ? round.score - course.par : null
+  const holesForRound = round?.holes_played || 18
+  const recapEffectivePar = course?.par ? (holesForRound === 9 ? Math.round(course.par / 2) : course.par) : null
+  const diff = round?.score != null && recapEffectivePar ? round.score - recapEffectivePar : null
 
   // Extract vibe from content (first line may be "🔥 On Fire")
   const vibeMatch = post.content?.match(/^([🔥😎💪😅🍻])\s/)
@@ -147,9 +149,12 @@ export function RoundRecapCard({ post, onClose }: RoundRecapCardProps) {
 
             {/* Big score */}
             <div className="text-center mb-6">
-              <div className="text-8xl font-black text-white leading-none mb-2">
+              <div className="text-8xl font-black text-white leading-none mb-1">
                 {round.score}
               </div>
+              {holesForRound === 9 && (
+                <p className="text-xs font-semibold text-amber-400/80 mb-1">9 Holes</p>
+              )}
               {diff !== null && (
                 <span
                   className={`inline-block text-base font-bold px-4 py-1.5 rounded-full ${
@@ -210,12 +215,12 @@ export function RoundRecapCard({ post, onClose }: RoundRecapCardProps) {
                     </p>
                   )}
                 </div>
-                {course?.par && (
+                {recapEffectivePar && (
                   <div className="text-right flex-shrink-0">
                     <p className="text-gray-500 text-[10px] uppercase tracking-wide">
                       Par
                     </p>
-                    <p className="text-white font-bold text-xl">{course.par}</p>
+                    <p className="text-white font-bold text-xl">{recapEffectivePar}</p>
                   </div>
                 )}
               </div>

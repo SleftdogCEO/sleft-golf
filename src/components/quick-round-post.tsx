@@ -31,6 +31,7 @@ export function QuickRoundPost({ onPostCreated }: QuickRoundPostProps) {
   const [courses, setCourses] = useState<Course[]>([])
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null)
   const [score, setScore] = useState('')
+  const [holesPlayed, setHolesPlayed] = useState<9 | 18>(18)
   const [vibe, setVibe] = useState<string | null>(null)
   const [note, setNote] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -102,6 +103,7 @@ export function QuickRoundPost({ onPostCreated }: QuickRoundPostProps) {
         user_id: userId,
         course_id: selectedCourse.id,
         score: parseInt(score),
+        holes_played: holesPlayed,
         status: 'completed',
         tee_time: new Date().toISOString(),
       })
@@ -146,6 +148,7 @@ export function QuickRoundPost({ onPostCreated }: QuickRoundPostProps) {
       setSelectedCourse(null)
       setCourseSearch('')
       setScore('')
+      setHolesPlayed(18)
       setVibe(null)
       setNote('')
       clearImage()
@@ -252,7 +255,7 @@ export function QuickRoundPost({ onPostCreated }: QuickRoundPostProps) {
           )}
         </div>
 
-        {/* Score */}
+        {/* Score + Holes */}
         <div>
           <label className="block text-sm font-medium text-gray-300 mb-1.5">What&apos;d you shoot?</label>
           <div className="flex items-center gap-3">
@@ -261,21 +264,45 @@ export function QuickRoundPost({ onPostCreated }: QuickRoundPostProps) {
               value={score}
               onChange={e => setScore(e.target.value)}
               placeholder="--"
-              min="40"
-              max="200"
+              min={holesPlayed === 9 ? '20' : '40'}
+              max={holesPlayed === 9 ? '100' : '200'}
               className="w-24 text-center text-3xl font-black bg-dark-700 border border-dark-600 rounded-xl py-2 text-white placeholder-gray-600 focus:ring-2 focus:ring-emerald-500"
             />
+            {/* 9/18 hole toggle */}
+            <div className="flex flex-col items-center gap-1">
+              <div className="flex bg-dark-700 rounded-xl overflow-hidden border border-dark-600">
+                {([9, 18] as const).map(h => (
+                  <button
+                    key={h}
+                    type="button"
+                    onClick={() => setHolesPlayed(h)}
+                    className={`px-3 py-1.5 text-xs font-bold transition-colors ${
+                      holesPlayed === h
+                        ? 'bg-emerald-600 text-white'
+                        : 'text-gray-400 hover:text-white'
+                    }`}
+                  >
+                    {h}
+                  </button>
+                ))}
+              </div>
+              <span className="text-[10px] text-gray-500">holes</span>
+            </div>
             {score && selectedCourse?.par ? (() => {
-              const diff = parseInt(score) - selectedCourse.par
+              const effectivePar = holesPlayed === 9 ? Math.round(selectedCourse.par / 2) : selectedCourse.par
+              const diff = parseInt(score) - effectivePar
               return (
-                <span className={`text-lg font-bold px-3 py-1 rounded-full ${
-                  diff < 0 ? 'bg-emerald-900/50 text-emerald-400' :
-                  diff === 0 ? 'bg-emerald-900/50 text-emerald-400' :
-                  diff <= 10 ? 'bg-yellow-900/50 text-yellow-400' :
-                  'bg-red-900/50 text-red-400'
-                }`}>
-                  {diff === 0 ? 'Even!' : diff < 0 ? `${diff}` : `+${diff}`}
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className={`text-lg font-bold px-3 py-1 rounded-full ${
+                    diff < 0 ? 'bg-emerald-900/50 text-emerald-400' :
+                    diff === 0 ? 'bg-emerald-900/50 text-emerald-400' :
+                    diff <= 10 ? 'bg-yellow-900/50 text-yellow-400' :
+                    'bg-red-900/50 text-red-400'
+                  }`}>
+                    {diff === 0 ? 'Even!' : diff < 0 ? `${diff}` : `+${diff}`}
+                  </span>
+                  <span className="text-xs text-gray-500">Par {effectivePar}</span>
+                </div>
               )
             })() : null}
           </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -29,6 +29,18 @@ export default function Nav() {
   const { user, profile, loading: authLoading } = useUser();
   const supabaseRef = useRef(createClient());
   const supabase = supabaseRef.current;
+
+  const [pendingInviteCount, setPendingInviteCount] = useState(0);
+
+  // Fetch pending invite count
+  useEffect(() => {
+    const uid = user?.id || profile?.id;
+    if (!uid) { setPendingInviteCount(0); return; }
+    fetch(`/api/invites?user_id=${uid}`)
+      .then(r => r.json())
+      .then(data => { if (Array.isArray(data)) setPendingInviteCount(data.length); })
+      .catch(() => {});
+  }, [user, profile]);
 
   const isLoggedIn = !!(user || profile);
   const displayName = profile?.full_name || user?.user_metadata?.full_name || user?.email?.split('@')[0] || null;
@@ -86,11 +98,12 @@ export default function Nav() {
               {navLinks.map((link) => {
                 const Icon = link.icon;
                 const isActive = pathname === link.href || pathname.startsWith(link.href + "/");
+                const showBadge = link.href === "/calendar" && pendingInviteCount > 0;
                 return (
                   <Link
                     key={link.href}
                     href={link.href}
-                    className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    className={`relative flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                       isActive
                         ? "bg-emerald-900/50 text-emerald-400"
                         : "text-gray-400 hover:bg-dark-800 hover:text-white"
@@ -98,6 +111,11 @@ export default function Nav() {
                   >
                     <Icon size={18} />
                     <span>{link.label}</span>
+                    {showBadge && (
+                      <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
+                        {pendingInviteCount}
+                      </span>
+                    )}
                   </Link>
                 );
               })}
@@ -201,6 +219,7 @@ export default function Nav() {
               {navLinks.map((link) => {
                 const Icon = link.icon;
                 const isActive = pathname === link.href || pathname.startsWith(link.href + "/");
+                const showBadge = link.href === "/calendar" && pendingInviteCount > 0;
                 return (
                   <Link
                     key={link.href}
@@ -213,7 +232,12 @@ export default function Nav() {
                     }`}
                   >
                     <Icon size={20} />
-                    <span>{link.label}</span>
+                    <span className="flex-1">{link.label}</span>
+                    {showBadge && (
+                      <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-red-500 px-1.5 text-[11px] font-bold text-white">
+                        {pendingInviteCount}
+                      </span>
+                    )}
                   </Link>
                 );
               })}

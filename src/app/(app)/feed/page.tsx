@@ -47,6 +47,7 @@ export default function FeedPage() {
   const [score, setScore] = useState('')
   const [vibe, setVibe] = useState<string | null>(null)
   const [caption, setCaption] = useState('')
+  const [holesPlayed, setHolesPlayed] = useState<9 | 18>(18)
   const [highlights, setHighlights] = useState('')
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
@@ -194,6 +195,7 @@ export default function FeedPage() {
     setScore('')
     setVibe(null)
     setCaption('')
+    setHolesPlayed(18)
     setHighlights('')
     clearImage()
     setPostError(null)
@@ -212,6 +214,7 @@ export default function FeedPage() {
           user_id: userId,
           course_id: selectedCourse.id,
           score: parseInt(score),
+          holes_played: holesPlayed,
           status: 'completed',
           tee_time: new Date().toISOString(),
         })
@@ -284,7 +287,8 @@ export default function FeedPage() {
     await sharePost({ title: `${authorName} on Sleft Golf`, text, url: 'https://sleftgolf.vercel.app/feed' })
   }
 
-  const scoreDiff = score && selectedCourse?.par ? parseInt(score) - selectedCourse.par : null
+  const effectivePar = selectedCourse?.par ? (holesPlayed === 9 ? Math.round(selectedCourse.par / 2) : selectedCourse.par) : null
+  const scoreDiff = score && effectivePar ? parseInt(score) - effectivePar : null
 
   return (
     <div className="min-h-screen bg-dark-950">
@@ -391,19 +395,39 @@ export default function FeedPage() {
                     className="w-24 text-center text-3xl font-black bg-dark-700 border border-dark-600 rounded-xl py-2.5 text-white placeholder-gray-700 focus:ring-2 focus:ring-emerald-500"
                   />
                 </div>
-                {scoreDiff !== null && !isNaN(scoreDiff) && (
-                  <div className="pt-5">
-                    <span className={`text-lg font-bold px-3 py-1.5 rounded-full ${
-                      scoreDiff < 0 ? 'bg-emerald-900/50 text-emerald-400' :
-                      scoreDiff === 0 ? 'bg-emerald-900/50 text-emerald-400' :
-                      scoreDiff <= 10 ? 'bg-yellow-900/50 text-yellow-400' :
-                      'bg-red-900/50 text-red-400'
-                    }`}>
-                      {scoreDiff === 0 ? 'Even' : scoreDiff < 0 ? `${scoreDiff}` : `+${scoreDiff}`}
-                    </span>
-                    {selectedCourse?.par && <span className="text-xs text-gray-600 ml-2">Par {selectedCourse.par}</span>}
+                <div className="pt-5 flex items-center gap-3">
+                  {/* 9/18 hole toggle */}
+                  <div className="flex bg-dark-700 rounded-xl overflow-hidden border border-dark-600">
+                    {([9, 18] as const).map(h => (
+                      <button
+                        key={h}
+                        type="button"
+                        onClick={() => { setHolesPlayed(h); hapticLight() }}
+                        className={`px-3 py-1.5 text-xs font-bold transition-colors ${
+                          holesPlayed === h
+                            ? 'bg-emerald-600 text-white'
+                            : 'text-gray-400 hover:text-white'
+                        }`}
+                      >
+                        {h}
+                      </button>
+                    ))}
                   </div>
-                )}
+                  <span className="text-xs text-gray-500">holes</span>
+                  {scoreDiff !== null && !isNaN(scoreDiff) && (
+                    <>
+                      <span className={`text-lg font-bold px-3 py-1.5 rounded-full ${
+                        scoreDiff < 0 ? 'bg-emerald-900/50 text-emerald-400' :
+                        scoreDiff === 0 ? 'bg-emerald-900/50 text-emerald-400' :
+                        scoreDiff <= 10 ? 'bg-yellow-900/50 text-yellow-400' :
+                        'bg-red-900/50 text-red-400'
+                      }`}>
+                        {scoreDiff === 0 ? 'Even' : scoreDiff < 0 ? `${scoreDiff}` : `+${scoreDiff}`}
+                      </span>
+                      {effectivePar && <span className="text-xs text-gray-600">Par {effectivePar}</span>}
+                    </>
+                  )}
+                </div>
               </div>
 
               {/* Vibe selector */}
@@ -509,7 +533,9 @@ export default function FeedPage() {
             {posts.map(post => {
               const round = post.rounds
               const course = round?.courses
-              const diff = round?.score != null && course?.par ? round.score - course.par : null
+              const holesForRound = round?.holes_played || 18
+              const postEffectivePar = course?.par ? (holesForRound === 9 ? Math.round(course.par / 2) : course.par) : null
+              const diff = round?.score != null && postEffectivePar ? round.score - postEffectivePar : null
               const hasImage = post.image_urls && post.image_urls.length > 0
 
               return (
@@ -569,6 +595,9 @@ export default function FeedPage() {
                               }`}>
                                 {diff === 0 ? 'Even par' : diff < 0 ? `${diff} under` : `+${diff} over`}
                               </span>
+                            )}
+                            {holesForRound === 9 && (
+                              <p className="text-[10px] text-amber-400/80 font-semibold mt-0.5">9 holes</p>
                             )}
                           </div>
                         </div>
